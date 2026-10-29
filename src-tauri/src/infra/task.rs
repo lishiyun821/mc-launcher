@@ -133,6 +133,8 @@ impl TaskManager {
 
 /* ═══════════════ 任务句柄 ═══════════════ */
 
+/// 任务句柄（可克隆：克隆出来的句柄操作同一个任务，方便丢进 tokio::spawn）
+#[derive(Clone)]
 pub struct TaskHandle {
     mgr: Arc<TaskManager>,
     id: String,

@@ -1,16 +1,12 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use serde::Serialize;
 use tauri::State;
 
-use crate::infra::downloader::{FileDownloader, FileTask, Outcome};
 use crate::infra::task::TaskHandle;
-use crate::services::install::version_json;
+use crate::services::install::{natives, plan, runner, version_json};
 use crate::services::version;
 use crate::state::AppState;
 
-/// 安装（M1：解析版本 + 落地客户端 jar）的结果报告
+/// 安装结果报告（M2：版本定义 + 全部库 + 资源 + natives）
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallReport {
@@ -19,16 +15,25 @@ pub struct InstallReport {
     pub library_count: usize,
     pub platform_library_count: usize,
     pub native_count: usize,
+    pub native_extracted: usize,
+    pub asset_count: usize,
     pub asset_index_id: String,
     pub client_size: u64,
-    pub client_skipped: bool,
     pub chain: Vec<String>,
     pub json_path: String,
     pub game_dir: String,
+    /// 本次真正下载的文件数
+    pub downloaded: usize,
+    /// 已存在且校验通过、跳过的文件数
+    pub skipped: usize,
+    /// 失败的文件（相对路径 + 原因）
+    pub failed: Vec<String>,
+    /// 下载总字节
+    pub total_bytes: u64,
     pub elapsed_ms: u64,
 }
 
-/// 安装一个版本（M1 范围：版本定义 + 客户端 jar）
+/// 安装一个版本（完整安装）
 #[tauri::command]
 pub async fn install_version(
     state: State<'_, AppState>,
@@ -39,13 +44,24 @@ pub async fn install_version(
 
     match do_install(&state, &task, &id, started).await {
         Ok(report) => {
-            task.finish(format!(
-                "{} 已就绪 · {} 个库 · jar {:.1} MB",
-                report.id,
-                report.platform_library_count,
-                report.client_size as f64 / 1024.0 / 1024.0
-            ))
-            .await;
+            let summary = if report.failed.is_empty() {
+                format!(
+                    "{} 安装完成 · {} 个文件 · {:.1} MB · {:.0} 秒",
+                    report.id,
+                    report.downloaded,
+                    report.total_bytes as f64 / 1024.0 / 1024.0,
+                    report.elapsed_ms as f64 / 1000.0
+                )
+            } else {
+                format!(
+                    "{} 基本完成 · {}/{} 成功 · {} 个失败",
+                    report.id,
+                    report.downloaded + report.skipped,
+                    report.downloaded + report.skipped + report.failed.len(),
+                    report.failed.len()
+                )
+            };
+            task.finish(summary).await;
             Ok(report)
         }
         Err(e) => {
@@ -70,96 +86,81 @@ async fn do_install(
     let versions_dir = mc_dir.join("versions");
     std::fs::create_dir_all(&versions_dir)?;
 
-    let report = |rv: &version_json::ResolvedVersion,
-                  client_size: u64,
-                  client_skipped: bool,
-                  json_path: std::path::PathBuf|
-     -> InstallReport {
-        let platform_libs = rv.platform_libraries();
-        InstallReport {
-            id: rv.id.clone(),
-            main_class: rv.main_class.clone(),
-            library_count: rv.libraries.len(),
-            platform_library_count: platform_libs.len(),
-            native_count: rv.native_classifiers().len(),
-            asset_index_id: rv.asset_index.id.clone(),
-            client_size,
-            client_skipped,
-            chain: rv.chain.clone(),
-            json_path: json_path.display().to_string(),
-            game_dir: mc_dir.display().to_string(),
-            elapsed_ms: started.elapsed().as_millis() as u64,
-        }
-    };
-
-    // ① 版本清单（有缓存，通常秒开）
+    // ① 版本清单
     task.progress(0.02, "读取版本清单").await;
     let manifest = version::fetch_manifest(&state.downloader, false).await?;
 
     // ② 解析 + inheritsFrom 合并
     let rv = version_json::resolve(&state.downloader, &versions_dir, &manifest, id, task).await?;
 
-    // ③ 下载客户端 jar（单文件下载器的第一次真实使用）
-    task.progress(0.35, "下载客户端 jar").await;
+    // ③ 计算下载清单
+    task.progress(0.08, "计算下载清单").await;
+    let dl_plan = plan::build_plan(&state.downloader, &mc_dir, &rv, task).await?;
 
+    // ④ 并发下载全部内容
+    task.progress(0.10, "开始下载").await;
+    let stats = runner::run(&dl_plan, &mc_dir, 16, task).await?;
+
+    // ⑤ 解压 natives
+    task.progress(0.96, "解压 natives").await;
+    let native_dest = plan::natives_dir(&mc_dir, &rv.id);
+    let native_jars: Vec<std::path::PathBuf> = dl_plan
+        .natives
+        .iter()
+        .map(|n| n.dest.clone())
+        .filter(|p| p.is_file())
+        .collect();
+    let exclude: Vec<String> = rv
+        .libraries
+        .iter()
+        .filter_map(|l| l.extract.as_ref())
+        .flat_map(|e| e.exclude.clone())
+        .collect();
+    let (_jars, native_files) = natives::extract_all(&native_jars, &native_dest, &exclude)?;
+
+    // ⑥ 汇总
     let jar_path = versions_dir.join(id).join(format!("{id}.jar"));
-    let file_task = FileTask::new(rv.client.url.clone(), jar_path.clone())
-        .with_sha1(rv.client.sha1.clone())
-        .with_size(rv.client.size);
-
-    let expected = rv.client.size.unwrap_or(0);
-    let last_push = AtomicU64::new(0);
-
-    let outcome = FileDownloader::new()
-        .download(&file_task, |done, total| {
-            // 节流：最多每 120ms 推一次，避免刷爆前端事件
-            let now = now_ms();
-            if now.saturating_sub(last_push.load(Ordering::Relaxed)) < 120 {
-                return;
-            }
-            last_push.store(now, Ordering::Relaxed);
-
-            let total = total.unwrap_or(expected).max(1);
-            let ratio = (done as f64 / total as f64).clamp(0.0, 1.0) as f32;
-            task.progress_sync(
-                0.35 + ratio * 0.60,
-                format!(
-                    "下载客户端 jar {:.1} / {:.1} MB",
-                    done as f64 / 1024.0 / 1024.0,
-                    total as f64 / 1024.0 / 1024.0
-                ),
-            );
-        })
-        .await?;
-
-    let skipped = outcome == Outcome::Skipped;
-
-    // ④ 收尾
-    task.progress(0.97, "写入版本定义").await;
-    let json_path = versions_dir.join(id).join(format!("{id}.json"));
     let client_size = std::fs::metadata(&jar_path).map(|m| m.len()).unwrap_or(0);
+    let json_path = versions_dir.join(id).join(format!("{id}.json"));
 
-    let r = report(&rv, client_size, skipped, json_path);
+    let report = InstallReport {
+        id: rv.id.clone(),
+        main_class: rv.main_class.clone(),
+        library_count: rv.libraries.len(),
+        platform_library_count: rv.platform_libraries().len(),
+        native_count: rv.native_classifiers().len(),
+        native_extracted: native_files,
+        asset_count: dl_plan.assets.len(),
+        asset_index_id: rv.asset_index.id.clone(),
+        client_size,
+        chain: rv.chain.clone(),
+        json_path: json_path.display().to_string(),
+        game_dir: mc_dir.display().to_string(),
+        downloaded: stats.downloaded,
+        skipped: stats.skipped,
+        failed: stats.failed.clone(),
+        total_bytes: stats.bytes,
+        elapsed_ms: started.elapsed().as_millis() as u64,
+    };
 
     tracing::info!(
-        "安装完成 {} | 继承链 {:?} | 库 {} (本平台 {}) | natives {} | assetIndex {} | mainClass {} | jar {} 字节{}",
-        r.id,
-        r.chain,
-        r.library_count,
-        r.platform_library_count,
-        r.native_count,
-        r.asset_index_id,
-        r.main_class,
-        r.client_size,
-        if r.client_skipped { "（已存在，跳过）" } else { "" }
+        "安装完成 {} | 库 {}/{} | natives {} → {} 文件 | assets {} | 下载 {} 跳过 {} 失败 {} | {:.1} MB | {} ms",
+        report.id,
+        report.platform_library_count,
+        report.library_count,
+        report.native_count,
+        report.native_extracted,
+        report.asset_count,
+        report.downloaded,
+        report.skipped,
+        report.failed.len(),
+        report.total_bytes as f64 / 1024.0 / 1024.0,
+        report.elapsed_ms
     );
 
-    Ok(r)
-}
+    for f in report.failed.iter().take(5) {
+        tracing::warn!("下载失败: {f}");
+    }
 
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+    Ok(report)
 }

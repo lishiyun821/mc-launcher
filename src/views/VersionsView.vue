@@ -72,16 +72,18 @@ async function install(v: VersionSummary) {
 }
 
 function reportLine(r: InstallReport) {
-  const mb = (r.clientSize / 1024 / 1024).toFixed(1);
-  const skip = r.clientSkipped ? " · jar 已存在" : "";
-  return [
+  const mb = (r.totalBytes / 1024 / 1024).toFixed(1);
+  const parts = [
     r.chain.join(" → "),
-    `${r.platformLibraryCount}/${r.libraryCount} libs`,
-    `${r.nativeCount} natives`,
-    r.assetIndexId,
-    `${mb} MB${skip}`,
-    `${r.elapsedMs} ms`,
-  ].join("  ·  ");
+    `${r.downloaded} 下载${r.skipped ? ` / ${r.skipped} 跳过` : ""}`,
+    `${r.platformLibraryCount} 库`,
+    `${r.assetCount} 资源`,
+    `${r.nativeExtracted} natives`,
+    `${mb} MB`,
+    `${(r.elapsedMs / 1000).toFixed(1)} s`,
+  ];
+  if (r.failed.length) parts.push(`⚠ ${r.failed.length} 个失败`);
+  return parts.join("  ·  ");
 }
 </script>
 
@@ -325,6 +327,11 @@ h1 {
   color: var(--ink-3);
 }
 /* ───── 安装按钮与结果摘要（M1） ───── */
+.row {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
 .mini {
   margin-left: 8px;
   padding: 3px 10px;

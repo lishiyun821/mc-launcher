@@ -11,6 +11,9 @@ src-tauri/gen/
 .env
 .env.local
 
+# 启动器数据目录（游戏实例 / 缓存 / 日志，开发期指到这里）
+data/
+
 # 系统
 .DS_Store
 Thumbs.db

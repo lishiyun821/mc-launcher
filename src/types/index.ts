@@ -54,21 +54,28 @@ export interface AppConfig {
   language: Lang;
 }
 
-/** 安装结果报告（M1） */
+/** 安装结果报告 */
 export interface InstallReport {
   id: string;
   mainClass: string;
-  /** 继承链合并后的全部库数量 */
   libraryCount: number;
-  /** 当前平台真正会用到的库数量 */
   platformLibraryCount: number;
   nativeCount: number;
+  /** 实际解压出的 native 文件数 */
+  nativeExtracted: number;
+  assetCount: number;
   assetIndexId: string;
   clientSize: number;
-  clientSkipped: boolean;
   /** 继承链，父 → 子 */
   chain: string[];
   jsonPath: string;
   gameDir: string;
+  /** 本次真正下载的文件数 */
+  downloaded: number;
+  /** 已存在跳过（校验通过）的文件数 */
+  skipped: number;
+  /** 失败的文件 */
+  failed: string[];
+  totalBytes: number;
   elapsedMs: number;
 }

@@ -3,8 +3,16 @@ use std::path::PathBuf;
 const APP_DIR: &str = "mc-launcher";
 
 /// 应用数据根目录
-/// Windows: %APPDATA%\mc-launcher
+///
+/// 优先级：
+/// 1. 环境变量 `MC_LAUNCHER_DATA_DIR`（开发期把数据留在项目盘，不占 C 盘）
+/// 2. Windows: `%APPDATA%\mc-launcher`（用户装好之后走这个）
 pub fn data_dir() -> Option<PathBuf> {
+    if let Ok(custom) = std::env::var("MC_LAUNCHER_DATA_DIR") {
+        if !custom.trim().is_empty() {
+            return Some(PathBuf::from(custom));
+        }
+    }
     dirs::data_dir().map(|d| d.join(APP_DIR))
 }
 
