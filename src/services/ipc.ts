@@ -31,6 +31,11 @@ export const fetchVersionManifest = (forceRefresh = false) =>
 
 export const listLocalVersions = () => call<string[]>("list_local_versions");
 
+/* ───────── 安装 ───────── */
+
+export const installVersion = (id: string) =>
+  call<import("@/types").InstallReport>("install_version", { id });
+
 /* ───────── 任务 ───────── */
 
 export const listTasks = () => call<import("@/types").TaskInfo[]>("list_tasks");

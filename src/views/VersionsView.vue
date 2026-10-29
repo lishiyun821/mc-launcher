@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { fetchVersionManifest, listLocalVersions } from "@/services/ipc";
+import { fetchVersionManifest, listLocalVersions, installVersion } from "@/services/ipc";
 import { useI18n } from "@/i18n";
-import type { VersionManifest, VersionSummary } from "@/types";
+import type { InstallReport, VersionManifest, VersionSummary } from "@/types";
 
 const { t } = useI18n();
 
@@ -51,6 +51,38 @@ function isLocal(id: string) {
 function shortDate(iso: string) {
   return iso.slice(0, 10);
 }
+
+/* ───── 安装（M1） ───── */
+
+const installingId = ref<string | null>(null);
+const reports = ref<Record<string, InstallReport>>({});
+
+async function install(v: VersionSummary) {
+  if (installingId.value !== null) return;
+  installingId.value = v.id;
+  try {
+    const r = await installVersion(v.id);
+    reports.value = { ...reports.value, [v.id]: r };
+    local.value = await listLocalVersions().catch(() => []);
+  } catch (e) {
+    console.error("[install]", e);
+  } finally {
+    installingId.value = null;
+  }
+}
+
+function reportLine(r: InstallReport) {
+  const mb = (r.clientSize / 1024 / 1024).toFixed(1);
+  const skip = r.clientSkipped ? " · jar 已存在" : "";
+  return [
+    r.chain.join(" → "),
+    `${r.platformLibraryCount}/${r.libraryCount} libs`,
+    `${r.nativeCount} natives`,
+    r.assetIndexId,
+    `${mb} MB${skip}`,
+    `${r.elapsedMs} ms`,
+  ].join("  ·  ");
+}
 </script>
 
 <template>
@@ -95,13 +127,28 @@ function shortDate(iso: string) {
     <div class="list">
       <div v-if="loading && !manifest" class="empty">{{ t("versions.loading") }}</div>
       <div v-else-if="!shown.length" class="empty">{{ t("versions.empty") }}</div>
-      <div v-for="v in shown" :key="v.id" class="row">
+      <div
+        v-for="v in shown"
+        :key="v.id"
+        class="row"
+        :class="{ busy: installingId === v.id }"
+      >
         <span class="id mono">{{ v.id }}</span>
         <span class="tag" :class="v.type">{{ typeLabel[v.type] ?? v.type }}</span>
         <span v-if="v.isLatest" class="tag latest">{{ t("versions.latest") }}</span>
         <span v-if="isLocal(v.id)" class="tag local">{{ t("versions.installed") }}</span>
         <span class="spacer"></span>
         <span class="date mono">{{ shortDate(v.releaseTime) }}</span>
+        <button class="mini" :disabled="installingId !== null" @click="install(v)">
+          {{
+            installingId === v.id
+              ? t("versions.installing")
+              : isLocal(v.id)
+                ? t("versions.reinstall")
+                : t("versions.install")
+          }}
+        </button>
+        <div v-if="reports[v.id]" class="report mono">{{ reportLine(reports[v.id]) }}</div>
       </div>
     </div>
   </div>
@@ -276,5 +323,43 @@ h1 {
   text-align: center;
   font-size: 12px;
   color: var(--ink-3);
+}
+/* ───── 安装按钮与结果摘要（M1） ───── */
+.mini {
+  margin-left: 8px;
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--card-hover);
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+
+.mini:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.mini:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.row.busy .id {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.report {
+  flex-basis: 100%;
+  margin-top: 6px;
+  padding-left: 2px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  word-break: break-all;
 }
 </style>

@@ -24,11 +24,11 @@ pub async fn fetch_manifest(
     Ok(raw.into())
 }
 
-/// 默认的 .minecraft 目录
+/// 默认的 .minecraft 目录（本启动器独立目录，不与 PCL 混用）
 pub fn default_mc_dir() -> PathBuf {
-    dirs::data_dir()
-        .map(|d| d.join(".minecraft"))
-        .unwrap_or_else(|| PathBuf::from(".minecraft"))
+    paths::data_dir()
+        .map(|d| d.join("minecraft"))
+        .unwrap_or_else(|| PathBuf::from("minecraft"))
 }
 
 /// 扫描本地已安装版本（versions 目录下的每个子目录）

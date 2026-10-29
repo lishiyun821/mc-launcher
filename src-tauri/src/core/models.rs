@@ -15,13 +15,13 @@ pub struct RawVersionEntry {
     pub release_time: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RawLatest {
     pub release: String,
     pub snapshot: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RawManifest {
     pub latest: RawLatest,
     pub versions: Vec<RawVersionEntry>,
@@ -76,7 +76,7 @@ impl From<RawManifest> for VersionManifest {
 
 /* ═══════════════ 完整版本 JSON（启动用，Phase 1） ═══════════════ */
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionJson {
     pub id: String,
     #[serde(rename = "type")]
@@ -90,6 +90,7 @@ pub struct VersionJson {
     pub arguments: Option<Arguments>,
     #[serde(default)]
     pub libraries: Vec<Library>,
+    #[serde(rename = "assetIndex")]
     pub asset_index: Option<AssetIndex>,
     pub assets: Option<String>,
     pub downloads: Option<Downloads>,
@@ -100,7 +101,7 @@ pub struct VersionJson {
     pub time: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Arguments {
     #[serde(default)]
     pub game: Vec<serde_json::Value>,
@@ -108,7 +109,7 @@ pub struct Arguments {
     pub jvm: Vec<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Library {
     pub name: String,
     pub downloads: Option<LibraryDownloads>,
@@ -118,13 +119,13 @@ pub struct Library {
     pub extract: Option<Extract>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibraryDownloads {
     pub artifact: Option<Artifact>,
     pub classifiers: Option<std::collections::HashMap<String, Artifact>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Artifact {
     pub path: Option<String>,
     pub sha1: Option<String>,
@@ -132,42 +133,43 @@ pub struct Artifact {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Extract {
     #[serde(default)]
     pub exclude: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
     pub action: String,
     pub os: Option<OsRule>,
     pub features: Option<std::collections::HashMap<String, bool>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OsRule {
     pub name: Option<String>,
     pub arch: Option<String>,
     pub version: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssetIndex {
     pub id: String,
     pub sha1: Option<String>,
     pub size: Option<u64>,
+    #[serde(rename = "totalSize")]
     pub total_size: Option<u64>,
     pub url: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Downloads {
     pub client: Option<Artifact>,
     pub server: Option<Artifact>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JavaVersion {
     pub component: Option<String>,
     #[serde(rename = "majorVersion")]

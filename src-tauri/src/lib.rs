@@ -29,6 +29,8 @@ pub fn run() {
             // version
             commands::version::fetch_version_manifest,
             commands::version::list_local_versions,
+            // install
+            commands::install::install_version,
             // task
             commands::task::list_tasks,
             commands::task::cancel_task,

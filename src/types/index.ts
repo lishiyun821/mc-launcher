@@ -53,3 +53,22 @@ export interface AppConfig {
   downloadSource: DownloadSource;
   language: Lang;
 }
+
+/** 安装结果报告（M1） */
+export interface InstallReport {
+  id: string;
+  mainClass: string;
+  /** 继承链合并后的全部库数量 */
+  libraryCount: number;
+  /** 当前平台真正会用到的库数量 */
+  platformLibraryCount: number;
+  nativeCount: number;
+  assetIndexId: string;
+  clientSize: number;
+  clientSkipped: boolean;
+  /** 继承链，父 → 子 */
+  chain: string[];
+  jsonPath: string;
+  gameDir: string;
+  elapsedMs: number;
+}

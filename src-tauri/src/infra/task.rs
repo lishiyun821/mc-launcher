@@ -157,6 +157,26 @@ impl TaskHandle {
             .await;
     }
 
+    /// 同步版进度更新：给「不能 await 的同步回调」用（如下载进度回调）
+    pub fn progress_sync(&self, p: f32, detail: impl Into<String>) {
+        let p = p.clamp(0.0, 1.0);
+        let detail = detail.into();
+
+        let Ok(mut map) = self.mgr.inner.try_write() else {
+            return;
+        };
+        let Some(t) = map.get_mut(&self.id) else {
+            return;
+        };
+        t.progress = p;
+        t.detail = detail;
+        t.state = TaskState::Running;
+        let snapshot = t.clone();
+        drop(map);
+
+        let _ = self.mgr.app.emit(EVT_TASK, TaskEvent { task: snapshot });
+    }
+
     pub async fn finish(&self, detail: impl Into<String>) {
         let detail = detail.into();
         self.mgr
