@@ -1,0 +1,50 @@
+import { invoke } from "@tauri-apps/api/core";
+
+/**
+ * IPC 统一入口 —— 所有 Rust 命令都从这里走
+ * 好处：只有这一层知道命令名，方便统一错误处理 / 日志 / 埋点
+ */
+
+/** 统一错误处理：把 Rust 的 Err(String) 转成 JS Error */
+async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    return await invoke<T>(cmd, args);
+  } catch (e) {
+    const msg = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
+    throw new Error(`[${cmd}] ${msg}`);
+  }
+}
+
+/* ───────── 应用 ───────── */
+
+export const getAppVersion = () => call<string>("app_version");
+
+export const getConfig = () => call<import("@/types").AppConfig>("get_config");
+
+export const setConfig = (config: import("@/types").AppConfig) =>
+  call<void>("set_config", { config });
+
+/* ───────── 版本 ───────── */
+
+export const fetchVersionManifest = (forceRefresh = false) =>
+  call<import("@/types").VersionManifest>("fetch_version_manifest", { forceRefresh });
+
+export const listLocalVersions = () => call<string[]>("list_local_versions");
+
+/* ───────── 任务 ───────── */
+
+export const listTasks = () => call<import("@/types").TaskInfo[]>("list_tasks");
+
+export const cancelTask = (taskId: string) => call<void>("cancel_task", { taskId });
+
+/* ───────── 系统 ───────── */
+
+export const scanJava = () => call<JavaInfo[]>("scan_java");
+
+export interface JavaInfo {
+  path: string;
+  version: string;
+  major: number;
+  vendor: string;
+  is64Bit: boolean;
+}
