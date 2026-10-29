@@ -46,7 +46,10 @@ export interface TaskEvent {
 /** 下载源偏好 */
 export type DownloadSource = "official" | "mirror";
 
+/** 界面语言 */
+export type Lang = "zh-CN" | "en";
+
 export interface AppConfig {
   downloadSource: DownloadSource;
-  language: "zh-CN" | "en";
+  language: Lang;
 }

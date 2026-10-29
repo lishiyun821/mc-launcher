@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { fetchVersionManifest, listLocalVersions } from "@/services/ipc";
+import { useI18n } from "@/i18n";
 import type { VersionManifest, VersionSummary } from "@/types";
+
+const { t } = useI18n();
 
 const manifest = ref<VersionManifest | null>(null);
 const local = ref<string[]>([]);
@@ -10,12 +13,12 @@ const error = ref("");
 const filter = ref<"release" | "all">("release");
 const query = ref("");
 
-const typeLabel: Record<string, string> = {
-  release: "正式版",
-  snapshot: "快照",
-  old_beta: "古老 Beta",
-  old_alpha: "古老 Alpha",
-};
+const typeLabel = computed<Record<string, string>>(() => ({
+  release: t("versions.typeRelease"),
+  snapshot: t("versions.typeSnapshot"),
+  old_beta: t("versions.typeOldBeta"),
+  old_alpha: t("versions.typeOldAlpha"),
+}));
 
 const shown = computed<VersionSummary[]>(() => {
   const all = manifest.value?.versions ?? [];
@@ -53,39 +56,50 @@ function shortDate(iso: string) {
 <template>
   <div class="page">
     <header>
-      <div class="eyebrow">VERSIONS</div>
-      <h1>版本</h1>
+      <div class="eyebrow">{{ t("versions.eyebrow") }}</div>
+      <h1>{{ t("versions.title") }}</h1>
       <p class="sub">
-        共 <span class="mono">{{ manifest?.versions.length ?? 0 }}</span> 个版本 ·
-        最新正式版
+        {{ t("versions.total") }}
+        <span class="mono">{{ manifest?.versions.length ?? 0 }}</span>
+        {{ t("versions.totalUnit") }} · {{ t("versions.latestRelease") }}
         <span class="mono">{{ manifest?.latest.release ?? "—" }}</span>
-        · 本地
-        <span class="mono">{{ local.length }}</span> 个
+        · {{ t("versions.local") }}
+        <span class="mono">{{ local.length }}</span>
+        {{ t("versions.localUnit") }}
       </p>
     </header>
 
     <div class="toolbar">
       <div class="seg">
-        <button :class="{ on: filter === 'release' }" @click="filter = 'release'">正式版</button>
-        <button :class="{ on: filter === 'all' }" @click="filter = 'all'">全部</button>
+        <button :class="{ on: filter === 'release' }" @click="filter = 'release'">
+          {{ t("versions.filterRelease") }}
+        </button>
+        <button :class="{ on: filter === 'all' }" @click="filter = 'all'">
+          {{ t("versions.filterAll") }}
+        </button>
       </div>
-      <input v-model="query" class="search" placeholder="搜索版本号" spellcheck="false" />
+      <input
+        v-model="query"
+        class="search"
+        :placeholder="t('versions.searchPlaceholder')"
+        spellcheck="false"
+      />
       <div class="spacer"></div>
       <button class="btn" :disabled="loading" @click="load(true)">
-        {{ loading ? "刷新中…" : "刷新清单" }}
+        {{ loading ? t("versions.refreshing") : t("versions.refresh") }}
       </button>
     </div>
 
     <div v-if="error" class="err mono">{{ error }}</div>
 
     <div class="list">
-      <div v-if="loading && !manifest" class="empty">正在获取版本清单…</div>
-      <div v-else-if="!shown.length" class="empty">没有匹配的版本</div>
+      <div v-if="loading && !manifest" class="empty">{{ t("versions.loading") }}</div>
+      <div v-else-if="!shown.length" class="empty">{{ t("versions.empty") }}</div>
       <div v-for="v in shown" :key="v.id" class="row">
         <span class="id mono">{{ v.id }}</span>
         <span class="tag" :class="v.type">{{ typeLabel[v.type] ?? v.type }}</span>
-        <span v-if="v.isLatest" class="tag latest">最新</span>
-        <span v-if="isLocal(v.id)" class="tag local">已安装</span>
+        <span v-if="v.isLatest" class="tag latest">{{ t("versions.latest") }}</span>
+        <span v-if="isLocal(v.id)" class="tag local">{{ t("versions.installed") }}</span>
         <span class="spacer"></span>
         <span class="date mono">{{ shortDate(v.releaseTime) }}</span>
       </div>

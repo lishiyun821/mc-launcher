@@ -1,21 +1,25 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { TaskInfo } from "@/types";
+import { useI18n } from "@/i18n";
 
 defineProps<{ tasks: TaskInfo[] }>();
 
-const stateLabel: Record<string, string> = {
-  waiting: "等待",
-  running: "进行中",
-  finished: "完成",
-  failed: "失败",
-  cancelled: "已取消",
-};
+const { t } = useI18n();
+
+const stateLabel = computed<Record<string, string>>(() => ({
+  waiting: t("task.waiting"),
+  running: t("task.running"),
+  finished: t("task.finished"),
+  failed: t("task.failed"),
+  cancelled: t("task.cancelled"),
+}));
 </script>
 
 <template>
   <div class="taskbar">
     <div class="head">
-      <span class="title">任务</span>
+      <span class="title">{{ t("task.title") }}</span>
       <span class="count mono">{{ tasks.length }}</span>
     </div>
     <div class="list">

@@ -2,7 +2,8 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { onTaskUpdated } from "@/services/events";
-import { listTasks } from "@/services/ipc";
+import { getConfig, listTasks } from "@/services/ipc";
+import { useI18n } from "@/i18n";
 import type { TaskInfo } from "@/types";
 import HomeView from "@/views/HomeView.vue";
 import VersionsView from "@/views/VersionsView.vue";
@@ -11,15 +12,17 @@ import TaskBar from "@/components/TaskBar.vue";
 
 type Page = "home" | "versions" | "settings";
 
+const { t, setLang } = useI18n();
+
 const page = ref<Page>("home");
 const tasks = ref<TaskInfo[]>([]);
 let unlisten: UnlistenFn | null = null;
 
-const nav = [
-  { key: "home" as Page, label: "首页", hint: "概览" },
-  { key: "versions" as Page, label: "版本", hint: "安装与启动" },
-  { key: "settings" as Page, label: "设置", hint: "偏好" },
-];
+const nav = computed(() => [
+  { key: "home" as Page, label: t("nav.home"), hint: t("nav.homeHint") },
+  { key: "versions" as Page, label: t("nav.versions"), hint: t("nav.versionsHint") },
+  { key: "settings" as Page, label: t("nav.settings"), hint: t("nav.settingsHint") },
+]);
 
 const activeTask = computed(
   () => tasks.value.find((t) => t.state === "running") ?? null,
@@ -27,6 +30,10 @@ const activeTask = computed(
 const hasTasks = computed(() => tasks.value.length > 0);
 
 onMounted(async () => {
+  // 启动时应用已保存的语言
+  const cfg = await getConfig().catch(() => null);
+  if (cfg?.language) setLang(cfg.language as "zh-CN" | "en");
+
   tasks.value = await listTasks().catch(() => []);
   unlisten = await onTaskUpdated((task) => {
     const i = tasks.value.findIndex((t) => t.id === task.id);
@@ -67,11 +74,11 @@ onUnmounted(() => unlisten?.());
 
       <div class="status">
         <div class="status-row">
-          <span class="k">状态</span>
-          <span class="v">{{ activeTask ? "运行中" : "空闲" }}</span>
+          <span class="k">{{ t("status.label") }}</span>
+          <span class="v">{{ activeTask ? t("status.running") : t("status.idle") }}</span>
         </div>
         <div class="status-row">
-          <span class="k">任务</span>
+          <span class="k">{{ t("status.tasks") }}</span>
           <span class="v mono">{{ tasks.length }}</span>
         </div>
       </div>

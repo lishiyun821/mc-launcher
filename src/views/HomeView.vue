@@ -1,26 +1,48 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { getAppVersion } from "@/services/ipc";
+import { computed, onMounted, ref } from "vue";
+import { getAppVersion, getConfig, listLocalVersions } from "@/services/ipc";
+import { useI18n } from "@/i18n";
 
 const emit = defineEmits<{ goto: [page: "home" | "versions" | "settings"] }>();
+const { t } = useI18n();
 
 const appVersion = ref("—");
-const cards = [
-  { title: "版本", desc: "安装、管理与启动游戏", page: "versions" as const, metric: "0", unit: "个实例" },
-  { title: "设置", desc: "下载源、语言与偏好", page: "settings" as const, metric: "官方", unit: "下载源" },
-];
+const localCount = ref(0);
+const sourceLabel = ref("—");
+
+const cards = computed(() => [
+  {
+    title: t("home.cardVersions"),
+    desc: t("home.cardVersionsDesc"),
+    page: "versions" as const,
+    metric: String(localCount.value),
+    unit: t("home.cardVersionsUnit"),
+  },
+  {
+    title: t("home.cardSettings"),
+    desc: t("home.cardSettingsDesc"),
+    page: "settings" as const,
+    metric: sourceLabel.value,
+    unit: "",
+  },
+]);
 
 onMounted(async () => {
   appVersion.value = await getAppVersion().catch(() => "—");
+  const local = await listLocalVersions().catch(() => []);
+  localCount.value = local.length;
+  const cfg = await getConfig().catch(() => null);
+  sourceLabel.value =
+    cfg?.downloadSource === "mirror" ? "BMCLAPI" : "mojang";
 });
 </script>
 
 <template>
   <div class="page">
     <header>
-      <div class="eyebrow">OVERVIEW</div>
-      <h1>概览</h1>
-      <p class="sub">一个开源的 Minecraft 启动器 —— 分层架构 · 任务调度 · 多源下载</p>
+      <div class="eyebrow">{{ t("home.eyebrow") }}</div>
+      <h1>{{ t("home.title") }}</h1>
+      <p class="sub">{{ t("home.sub") }}</p>
     </header>
 
     <div class="grid">
@@ -41,16 +63,16 @@ onMounted(async () => {
 
     <section class="meta">
       <div class="meta-row">
-        <span class="k">应用版本</span>
+        <span class="k">{{ t("home.metaVersion") }}</span>
         <span class="v mono">{{ appVersion }}</span>
       </div>
       <div class="meta-row">
-        <span class="k">架构</span>
+        <span class="k">{{ t("home.metaArch") }}</span>
         <span class="v mono">Core / Service / Infra / UI</span>
       </div>
       <div class="meta-row">
-        <span class="k">阶段</span>
-        <span class="v">Phase 0 —— 骨架</span>
+        <span class="k">{{ t("home.metaStage") }}</span>
+        <span class="v">{{ t("home.metaStageValue") }}</span>
       </div>
     </section>
   </div>

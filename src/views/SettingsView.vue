@@ -1,16 +1,43 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { getConfig, setConfig, scanJava, type JavaInfo } from "@/services/ipc";
-import type { AppConfig } from "@/types";
+import { useI18n, languages } from "@/i18n";
+import type { AppConfig, Lang } from "@/types";
+
+const { t, setLang } = useI18n();
+
+const sources = computed(() => [
+  { value: "official", label: t("settings.official") },
+  { value: "mirror", label: t("settings.mirror") },
+]);
 
 const config = ref<AppConfig | null>(null);
 const javas = ref<JavaInfo[]>([]);
 const saved = ref(false);
+const loadingJava = ref(true);
 
 onMounted(async () => {
   config.value = await getConfig().catch(() => null);
   javas.value = await scanJava().catch(() => []);
+  loadingJava.value = false;
 });
+
+/** 语言：选了立刻生效（不点保存也生效），并落盘 */
+function onLangChange(value: string) {
+  const lang = value as Lang;
+  setLang(lang);
+  if (config.value) {
+    config.value.language = lang;
+    setConfig(config.value).catch(() => {});
+  }
+}
+
+/** 下载源：同样立刻持久化 */
+function onSourceChange(value: string) {
+  if (!config.value) return;
+  config.value.downloadSource = value as AppConfig["downloadSource"];
+  setConfig(config.value).catch(() => {});
+}
 
 async function save() {
   if (!config.value) return;
@@ -23,41 +50,58 @@ async function save() {
 <template>
   <div class="page">
     <header>
-      <div class="eyebrow">SETTINGS</div>
-      <h1>设置</h1>
-      <p class="sub">下载源、语言与运行环境</p>
+      <div class="eyebrow">{{ t("settings.eyebrow") }}</div>
+      <h1>{{ t("settings.title") }}</h1>
+      <p class="sub">{{ t("settings.sub") }}</p>
     </header>
 
     <section v-if="config" class="group">
-      <div class="group-title">下载源</div>
+      <div class="group-title">{{ t("settings.groupSource") }}</div>
       <div class="row">
         <div class="row-main">
-          <div class="label">优先下载源</div>
-          <div class="desc">镜像源失败时会自动降级到官方源，反之亦然</div>
+          <div class="label">{{ t("settings.preferSource") }}</div>
+          <div class="desc">{{ t("settings.preferDesc") }}</div>
         </div>
-        <select v-model="config.downloadSource" class="select">
-          <option value="official">官方源（mojang）</option>
-          <option value="mirror">镜像源（BMCLAPI）</option>
-        </select>
+        <div class="seg">
+          <button
+            v-for="s in sources"
+            :key="s.value"
+            :class="{ on: config.downloadSource === s.value }"
+            @click="onSourceChange(s.value)"
+          >
+            {{ s.label }}
+          </button>
+        </div>
       </div>
       <div class="row">
         <div class="row-main">
-          <div class="label">语言</div>
-          <div class="desc">界面语言</div>
+          <div class="label">{{ t("settings.language") }}</div>
+          <div class="desc">{{ t("settings.languageDesc") }}</div>
         </div>
-        <select v-model="config.language" class="select">
-          <option value="zh-CN">简体中文</option>
-          <option value="en">English</option>
-        </select>
+        <div class="seg">
+          <button
+            v-for="l in languages"
+            :key="l.value"
+            :class="{ on: config.language === l.value }"
+            @click="onLangChange(l.value)"
+          >
+            {{ l.label }}
+          </button>
+        </div>
       </div>
     </section>
 
     <section class="group">
-      <div class="group-title">Java 运行环境</div>
-      <div v-if="!javas.length" class="row">
+      <div class="group-title">{{ t("settings.groupJava") }}</div>
+      <div v-if="loadingJava" class="row">
         <div class="row-main">
-          <div class="label">未检测到 Java</div>
-          <div class="desc">安装 JDK 后重启应用，或手动指定 java.exe 路径</div>
+          <div class="label">…</div>
+        </div>
+      </div>
+      <div v-else-if="!javas.length" class="row">
+        <div class="row-main">
+          <div class="label">{{ t("settings.noJava") }}</div>
+          <div class="desc">{{ t("settings.noJavaDesc") }}</div>
         </div>
       </div>
       <div v-for="j in javas" :key="j.path" class="row">
@@ -66,13 +110,13 @@ async function save() {
           <div class="desc mono">{{ j.path }}</div>
         </div>
         <span class="badge">{{ j.major }}</span>
-        <span v-if="j.is64Bit" class="badge">64 位</span>
+        <span v-if="j.is64Bit" class="badge">{{ t("settings.bit64") }}</span>
       </div>
     </section>
 
     <div class="actions">
-      <button class="btn primary" @click="save">保存设置</button>
-      <span v-if="saved" class="ok">已保存</span>
+      <button class="btn primary" @click="save">{{ t("settings.save") }}</button>
+      <span v-if="saved" class="ok">{{ t("settings.saved") }}</span>
     </div>
   </div>
 </template>
@@ -159,6 +203,35 @@ h1 {
   border-radius: 7px;
   background: var(--card-hover);
   outline: none;
+}
+
+/* 分段控件（替代原生 select，点击即生效） */
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.055);
+}
+
+.seg button {
+  padding: 5px 11px;
+  font-size: 11.5px;
+  border-radius: 6px;
+  color: var(--ink-3);
+  transition: background 0.14s, color 0.14s;
+  white-space: nowrap;
+}
+
+.seg button:hover {
+  color: var(--ink-2);
+}
+
+.seg button.on {
+  background: var(--card-hover);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: var(--shadow);
 }
 
 .badge {
