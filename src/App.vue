@@ -49,7 +49,9 @@ onUnmounted(() => unlisten?.());
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="logo"></div>
+        <div class="logo" aria-hidden="true">
+          <i v-for="n in 9" :key="n"></i>
+        </div>
         <div class="brand-text">
           <div class="name">MC Launcher</div>
           <div class="ver mono">v0.1.0</div>
@@ -123,11 +125,30 @@ onUnmounted(() => unlisten?.());
 }
 
 .logo {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--ink) 0%, var(--ink-3) 100%);
-  box-shadow: var(--shadow);
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--ink);
+  padding: 5px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.logo i {
+  display: block;
+  border-radius: 1.5px;
+  background: var(--bg);
+}
+
+/* 棋盘格：偶数格降低不透明 → 方块感 */
+.logo i:nth-child(2n) {
+  opacity: 0.5;
 }
 
 .brand-text .name {
