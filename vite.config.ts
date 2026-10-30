@@ -25,7 +25,8 @@ export default defineConfig({
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
     target: "chrome105",
-    minify: "esbuild",
+    // Vite 8 用 rolldown/oxc，esbuild 不再内置；用默认压缩器
+    minify: true,
     sourcemap: false,
   },
 });
