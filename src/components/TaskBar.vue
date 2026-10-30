@@ -99,7 +99,6 @@ async function cancel(id: string) {
   grid-column: 2;
   border-top: 1px solid var(--line-2);
   background: var(--card);
-  backdrop-filter: blur(24px) saturate(180%);
   padding: 7px 16px 9px;
   max-height: 260px;
   overflow: auto;
@@ -128,7 +127,7 @@ async function cancel(id: string) {
 .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
 .pct { font-size: 10.5px; color: var(--ink-2); flex-shrink: 0; }
 .bar { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.fill { display: block; height: 100%; background: var(--ink-2); transition: width 0.25s ease; }
+.fill { display: block; height: 100%; background: var(--ink-2); transition: width 320ms var(--ease-apple), background-color 220ms var(--ease-apple); }
 .line2 { display: flex; align-items: baseline; gap: 8px; font-size: 10px; color: var(--ink-3); }
 .detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .elapsed { flex-shrink: 0; opacity: 0.7; }

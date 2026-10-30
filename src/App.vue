@@ -93,11 +93,13 @@ onUnmounted(() => unlisten?.());
     </aside>
 
     <main class="main">
-      <HomeView v-if="page === 'home'" @goto="page = $event as Page" />
-      <VersionsView v-else-if="page === 'versions'" />
-      <InstancesView v-else-if="page === 'instances'" />
-      <AuthView v-else-if="page === 'auth'" />
-      <SettingsView v-else />
+      <Transition name="view" mode="out-in">
+        <HomeView v-if="page === 'home'" key="home" @goto="page = $event as Page" />
+        <VersionsView v-else-if="page === 'versions'" key="versions" />
+        <InstancesView v-else-if="page === 'instances'" key="instances" />
+        <AuthView v-else-if="page === 'auth'" key="auth" />
+        <SettingsView v-else key="settings" />
+      </Transition>
     </main>
 
     <TaskBar v-if="hasTasks" :tasks="tasks" />
@@ -120,9 +122,10 @@ onUnmounted(() => unlisten?.());
   display: flex;
   flex-direction: column;
   padding: 22px 14px 16px;
-  border-right: 1px solid var(--line-2);
-  background: var(--card);
-  backdrop-filter: blur(24px) saturate(180%);
+  border-right: 1px solid var(--glass-border);
+  background: var(--glass-card);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
 }
 
 .brand {
@@ -184,7 +187,9 @@ nav {
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   text-align: left;
-  transition: background 0.15s ease;
+  transition:
+    background var(--dur-2) var(--ease-apple),
+    transform var(--dur-1) var(--ease-apple);
 }
 
 .nav-btn:hover {
@@ -200,11 +205,18 @@ nav {
   height: 5px;
   border-radius: 50%;
   background: transparent;
-  transition: background 0.15s;
+  transform: scale(0);
+  /* 圆点用带一点过冲的曲线，选中时"弹"出来 */
+  transition:
+    background var(--dur-2) var(--ease-apple),
+    transform var(--dur-2) cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow var(--dur-2) var(--ease-apple);
 }
 
 .nav-btn.on .dot {
   background: var(--ink);
+  transform: scale(1);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.055);
 }
 
 .nav-btn .label {
@@ -249,6 +261,30 @@ nav {
   min-width: 0;
 }
 
+/* ── 页面切换：淡出很快，淡入柔和上移 ── */
+.view-enter-active {
+  transition:
+    opacity var(--dur-2) var(--ease-apple),
+    transform var(--dur-2) var(--ease-apple);
+}
+
+.view-leave-active {
+  transition:
+    opacity 100ms ease,
+    transform 100ms ease;
+}
+
+.view-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.view-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+/* ── 最大化时贴边，圆角归零 ── */
 /* ── 大屏适配 ── */
 /* 全屏 / 超宽屏时侧栏稍微加宽，避免导航挤成一团 */
 @media (min-width: 1600px) {

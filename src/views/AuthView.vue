@@ -333,9 +333,10 @@ h1 {
 
 .card {
   padding: 16px 18px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--glass-border);
   border-radius: 12px;
   background: var(--card);
+  box-shadow: var(--glass-edge);
 }
 
 /* ───── 登录卡 ───── */

@@ -21,6 +21,14 @@ onMounted(async () => {
   config.value = await getConfig().catch(() => null);
   javas.value = await scanJava().catch(() => []);
   loadingJava.value = false;
+
+  // 进设置页就静默查一次更新，用户不点也知道自己是不是最新。
+  // 不置 checking，避免按钮闪一下"检查中"；失败也不打扰。
+  checkUpdate()
+    .then((r) => {
+      upd.value = r;
+    })
+    .catch(() => {});
 });
 
 /** 语言：选了立刻生效（不点保存也生效），并落盘 */
@@ -261,18 +269,34 @@ async function save() {
     </div>
 
     <section class="group">
-      <h3>{{ t("settings.about") }}</h3>
-      <div class="row">
+      <div class="group-title">{{ t("settings.about") }}</div>
+      <div class="row about-row">
+        <div class="about-icon" aria-hidden="true">M</div>
         <div class="row-main">
-          <div class="label mono">MC Launcher {{ upd?.current || "0.1.0" }}</div>
-          <div class="desc">
-            <span v-if="checking">{{ t("settings.checking") }}</span>
-            <a v-else-if="upd?.hasUpdate" :href="upd.url" target="_blank" class="link">
-              {{ t("settings.newVersion") }} {{ upd.latest }} → {{ t("settings.goDownload") }}
-            </a>
-            <span v-else-if="upd?.error" class="warn">{{ upd.error }}</span>
-            <span v-else-if="upd">{{ t("settings.upToDate") }}</span>
-            <span v-else class="mono">MIT · github.com/lishiyun821/mc-launcher</span>
+          <div class="label">MC Launcher</div>
+          <div class="about-meta">
+            <span class="ver mono">v{{ upd?.current || "0.1.0" }}</span>
+            <span class="dot">·</span>
+            <span>MIT</span>
+            <span class="dot">·</span>
+            <a
+              class="link"
+              href="https://github.com/lishiyun821/mc-launcher"
+              target="_blank"
+              rel="noopener"
+            >GitHub</a>
+          </div>
+          <div class="about-status">
+            <span v-if="checking" class="st">{{ t("settings.checking") }}</span>
+            <a
+              v-else-if="upd?.hasUpdate"
+              class="st new"
+              :href="upd.url"
+              target="_blank"
+              rel="noopener"
+            >{{ t("settings.newVersion") }} {{ upd.latest }} → {{ t("settings.goDownload") }}</a>
+            <span v-else-if="upd?.error" class="st warn">{{ upd.error }}</span>
+            <span v-else-if="upd" class="st ok">✓ {{ t("settings.upToDate") }}</span>
           </div>
         </div>
         <button class="btn" :disabled="checking" @click="doCheckUpdate">
@@ -315,10 +339,10 @@ h1 {
 
 .group {
   margin-top: 26px;
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   background: var(--card);
-  backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: var(--glass-edge);
   overflow: hidden;
 }
 
@@ -464,5 +488,96 @@ h1 {
 
 .warn {
   color: #b4763a;
+}
+
+/* ── 关于 ── */
+.about-row {
+  padding: 14px 15px;
+  align-items: center;
+}
+
+.about-icon {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.about-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.about-meta .ver {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.055);
+  font-size: 10px;
+  color: var(--ink-2);
+}
+
+.about-meta .dot {
+  opacity: 0.4;
+}
+
+.about-meta .link {
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: color var(--dur-2) var(--ease-apple);
+}
+
+.about-meta .link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.about-status {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.about-status .st {
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.about-status .st.ok {
+  color: var(--ok);
+}
+
+.about-status .st.new {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.about-status .st.new:hover {
+  text-decoration: underline;
+}
+
+.about-status .st.warn {
+  color: var(--warn);
+}
+
+/* 深色下版本号的底要提亮 */
+:root[data-theme="dark"] .about-meta .ver {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .about-meta .ver {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 </style>

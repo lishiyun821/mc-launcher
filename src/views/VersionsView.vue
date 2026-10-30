@@ -311,7 +311,6 @@ h1 {
   border: 1px solid var(--line-2);
   border-radius: var(--radius);
   background: var(--card);
-  backdrop-filter: blur(18px) saturate(180%);
 }
 
 .row {

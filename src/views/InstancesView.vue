@@ -407,10 +407,11 @@ h1 {
 
 .card {
   padding: 14px 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--glass-border);
   border-radius: 12px;
   background: var(--card);
-  transition: border-color 0.2s;
+  box-shadow: var(--glass-edge);
+  transition: border-color 0.2s, box-shadow var(--dur-2) var(--ease-apple);
 }
 
 .card.busy {

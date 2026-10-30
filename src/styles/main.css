@@ -6,8 +6,22 @@
   --ink-4: #b8b8bd;
   --line: rgba(0, 0, 0, 0.08);
   --line-2: rgba(0, 0, 0, 0.045);
-  --card: rgba(255, 255, 255, 0.62);
-  --card-hover: rgba(255, 255, 255, 0.82);
+  --card: rgba(255, 255, 255, 0.72);
+  --card-hover: rgba(255, 255, 255, 0.86);
+  /* 真玻璃（只有侧栏和首页大卡用，模糊层越少越省） */
+  --glass-card: rgba(255, 255, 255, 0.5);
+  /* 玻璃边缘：顶部受光的镜面高光 + 底部微弱反光 + 落地阴影 */
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-edge:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 36px rgba(0, 0, 0, 0.07);
+  --glass-edge-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.24),
+    0 2px 8px rgba(0, 0, 0, 0.05),
+    0 20px 56px rgba(0, 0, 0, 0.11);
   --bg: #f2f2f4;
   --bg-2: #e8e8ec;
   --accent: #1d1d1f;
@@ -21,6 +35,13 @@
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
   --mono: "SF Mono", "JetBrains Mono", Consolas, ui-monospace, monospace;
+
+  /* ── 动效：苹果式缓动（A）+ 玻璃光感（C） ── */
+  --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-1: 140ms;
+  --dur-2: 220ms;
+  --dur-3: 320ms;
 }
 
 /* ───── 深色（两种来源：手动指定 / 系统偏好且没手动指定） ───── */
@@ -32,8 +53,20 @@
   --ink-4: #5a5a5f;
   --line: rgba(255, 255, 255, 0.1);
   --line-2: rgba(255, 255, 255, 0.055);
-  --card: rgba(38, 38, 42, 0.62);
-  --card-hover: rgba(48, 48, 52, 0.82);
+  --card: rgba(40, 40, 44, 0.76);
+  --card-hover: rgba(48, 48, 52, 0.86);
+  --glass-card: rgba(38, 38, 42, 0.62);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-edge:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 12px 36px rgba(0, 0, 0, 0.45);
+  --glass-edge-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.07),
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 20px 56px rgba(0, 0, 0, 0.55);
   --bg: #161618;
   --bg-2: #1e1e21;
   --accent: #f5f5f7;
@@ -48,8 +81,20 @@
     --ink-4: #5a5a5f;
     --line: rgba(255, 255, 255, 0.1);
     --line-2: rgba(255, 255, 255, 0.055);
-    --card: rgba(38, 38, 42, 0.62);
-    --card-hover: rgba(48, 48, 52, 0.82);
+      --card: rgba(40, 40, 44, 0.76);
+    --card-hover: rgba(48, 48, 52, 0.86);
+    --glass-card: rgba(38, 38, 42, 0.62);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-edge:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+      0 1px 2px rgba(0, 0, 0, 0.25),
+      0 12px 36px rgba(0, 0, 0, 0.45);
+    --glass-edge-hover:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.07),
+      0 2px 8px rgba(0, 0, 0, 0.3),
+      0 20px 56px rgba(0, 0, 0, 0.55);
     --bg: #161618;
     --bg-2: #1e1e21;
     --accent: #f5f5f7;
@@ -66,7 +111,11 @@
   padding: 0;
 }
 
-html,
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body,
 #app {
   height: 100%;
@@ -87,14 +136,26 @@ body {
 /* 背景光斑 —— 让毛玻璃有东西可透 */
 body::before {
   content: "";
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 12% 8%, rgba(120, 160, 255, 0.16), transparent 42%),
-    radial-gradient(circle at 88% 92%, rgba(255, 170, 120, 0.14), transparent 45%),
-    radial-gradient(circle at 70% 10%, rgba(160, 255, 200, 0.1), transparent 38%);
+    radial-gradient(circle at 12% 8%, rgba(120, 160, 255, 0.30), transparent 46%),
+    radial-gradient(circle at 88% 92%, rgba(255, 170, 120, 0.26), transparent 48%),
+    radial-gradient(circle at 72% 12%, rgba(160, 255, 200, 0.20), transparent 40%),
+    radial-gradient(circle at 28% 84%, rgba(206, 160, 255, 0.18), transparent 44%);
+}
+
+/* 细颗粒噪点：压掉渐变色带，让玻璃有真实的表面质感 */
+body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 button {
@@ -137,4 +198,144 @@ textarea {
   color: var(--ink-3);
   font-weight: 500;
   margin-left: 1px;
+}
+
+
+/* ════════════════════════════════════════════════
+   动效层：A（苹果式克制） + C（玻璃光感）
+   ════════════════════════════════════════════════ */
+
+/* 所有可交互元素统一走苹果曲线，避免各处的动画节奏不一致 */
+button,
+a,
+input,
+select,
+textarea,
+.card,
+li,
+[role="button"] {
+  transition-timing-function: var(--ease-apple);
+}
+
+/* ── 按钮按下：轻微内缩再弹回 ── */
+button:not(:disabled) {
+  transition:
+    transform var(--dur-1) var(--ease-apple),
+    background-color var(--dur-2) var(--ease-apple),
+    border-color var(--dur-2) var(--ease-apple),
+    color var(--dur-2) var(--ease-apple),
+    box-shadow var(--dur-2) var(--ease-apple),
+    opacity var(--dur-2) var(--ease-apple);
+}
+
+button:not(:disabled):active {
+  transform: scale(0.965);
+}
+
+/* ── 卡片：抬起 + 阴影加深，hover 时高光斜扫 ── */
+.card {
+  position: relative;
+  overflow: hidden;
+  /* 卡片不再单独开 blur —— 每多一层 backdrop-filter 就多一次背景采样，
+     7~9 层下来 GPU 白白挨了一遍。质感靠半透明 + 镜面边缘就够。 */
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-edge);
+  transition:
+    transform var(--dur-2) var(--ease-apple),
+    box-shadow var(--dur-2) var(--ease-apple),
+    background-color var(--dur-2) var(--ease-apple),
+    border-color var(--dur-2) var(--ease-apple);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-edge-hover);
+}
+
+.card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -55%;
+  width: 55%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45) 50%, transparent);
+  opacity: 0;
+  will-change: transform;
+}
+
+.card:hover::after {
+  opacity: 1;
+  animation: sheen 720ms var(--ease-out-expo);
+}
+
+/* 用 transform 扫过，交给合成器，不触发重绘 */
+@keyframes sheen {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(280%);
+  }
+}
+
+/* 深色下高光要弱，否则刺眼 */
+:root[data-theme="dark"] .card::after {
+  background: linear-gradient(112deg, transparent 32%, rgba(255, 255, 255, 0.13) 48%, transparent 64%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .card::after {
+    background: linear-gradient(112deg, transparent 32%, rgba(255, 255, 255, 0.13) 48%, transparent 64%);
+  }
+}
+
+/* ── 骨架屏光带 ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 37%, var(--line-2) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* ── 尊重系统「减少动态效果」设置 ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 系统开了「减少透明度」就别玩玻璃了，直接给实色，保住可读性 */
+@media (prefers-reduced-transparency: reduce) {
+  .card,
+  .launcher,
+  .quick-item {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #ffffff !important;
+  }
+
+  :root[data-theme="dark"] .card,
+  :root[data-theme="dark"] .launcher,
+  :root[data-theme="dark"] .quick-item {
+    background: #26262a !important;
+  }
+
+  body::before,
+  body::after {
+    display: none;
+  }
 }
