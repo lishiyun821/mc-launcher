@@ -342,8 +342,11 @@ function verifyLine(r: VerifyReport) {
 
 <style scoped>
 .wrap {
-  padding: 26px 30px 60px;
-  max-width: 1000px;
+  padding: 26px 32px 60px;
+  width: 100%;
+  max-width: clamp(1180px, 62vw, 1800px);
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .head {
@@ -600,5 +603,9 @@ h1 {
 .actions-row {
   flex-direction: row;
   gap: 8px;
+}
+
+@media (min-width: 1600px) {
+  .wrap { padding: 32px 48px 72px; }
 }
 </style>

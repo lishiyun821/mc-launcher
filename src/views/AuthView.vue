@@ -286,8 +286,11 @@ function initial(name: string) {
 
 <style scoped>
 .wrap {
-  padding: 26px 30px 60px;
-  max-width: 1000px;
+  padding: 26px 32px 60px;
+  width: 100%;
+  max-width: clamp(1180px, 62vw, 1800px);
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .head {
@@ -601,5 +604,9 @@ h1 {
   background: rgba(209, 67, 67, 0.06);
   font-size: 11.5px;
   color: var(--ink-2);
+}
+
+@media (min-width: 1600px) {
+  .wrap { padding: 32px 48px 72px; }
 }
 </style>

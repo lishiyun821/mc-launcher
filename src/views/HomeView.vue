@@ -55,8 +55,14 @@ async function load() {
     activeId.value = cfg.activeInstance ?? null;
   }
   instances.value = list;
-  if (accs) {
-    activeAccount.value = accs.accounts.find((a) => a.id === accs.active) ?? null;
+  // 优先用后端给的 active 布尔字段；退一步再按 id 匹配。
+  // 账户页和首页状态必须一致，任何一边拿不到都退回"未登录"只为兜底。
+  if (accs && Array.isArray(accs.accounts)) {
+    activeAccount.value =
+      accs.accounts.find((a) => a.active) ??
+      accs.accounts.find((a) => a.id === accs.active) ??
+      null;
+    console.debug("[home] accounts =", accs.accounts.length, "active =", accs.active, "→", activeAccount.value?.name ?? "none");
   }
   loading.value = false;
 }
@@ -226,7 +232,7 @@ function kindLabel(kind: string | null) {
 </template>
 
 <style scoped>
-.wrap { padding: 26px 30px 60px; max-width: 1000px; }
+.wrap { padding: 26px 32px 60px; width: 100%; max-width: clamp(1180px, 62vw, 1800px); margin: 0 auto; box-sizing: border-box; }
 .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .eyebrow { font-size: 10px; letter-spacing: 1.4px; color: var(--ink-3); margin-bottom: 7px; }
 h1 { margin: 0; font-size: 25px; font-weight: 600; letter-spacing: -0.5px; color: var(--ink); }
@@ -286,4 +292,8 @@ h1 { margin: 0; font-size: 25px; font-weight: 600; letter-spacing: -0.5px; color
 
 .primary { padding: 9px 18px; font-size: 12.5px; font-weight: 500; border: none; border-radius: 9px; background: var(--ink); color: var(--bg); cursor: pointer; }
 .primary:hover { opacity: 0.87; }
+
+@media (min-width: 1600px) {
+  .wrap { padding: 32px 48px 72px; }
+}
 </style>

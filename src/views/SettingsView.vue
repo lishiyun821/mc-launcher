@@ -288,6 +288,10 @@ async function save() {
   padding: 34px 40px;
   overflow: auto;
   height: 100%;
+  width: 100%;
+  max-width: clamp(1180px, 64vw, 1800px);
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .eyebrow {

@@ -248,4 +248,18 @@ nav {
   flex-direction: column;
   min-width: 0;
 }
+
+/* ── 大屏适配 ── */
+/* 全屏 / 超宽屏时侧栏稍微加宽，避免导航挤成一团 */
+@media (min-width: 1600px) {
+  .shell {
+    grid-template-columns: 232px 1fr;
+  }
+}
+
+@media (min-width: 2200px) {
+  .shell {
+    grid-template-columns: 252px 1fr;
+  }
+}
 </style>
