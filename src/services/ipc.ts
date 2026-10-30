@@ -36,6 +36,15 @@ export const listLocalVersions = () => call<string[]>("list_local_versions");
 export const installVersion = (id: string) =>
   call<import("@/types").InstallReport>("install_version", { id });
 
+/* ───────── 启动 ───────── */
+
+export const launchVersion = (id: string, accountName: string, memoryMb?: number) =>
+  call<import("@/types").LaunchReport>("launch_version", {
+    id,
+    accountName,
+    memoryMb: memoryMb ?? null,
+  });
+
 /* ───────── 任务 ───────── */
 
 export const listTasks = () => call<import("@/types").TaskInfo[]>("list_tasks");

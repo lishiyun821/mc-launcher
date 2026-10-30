@@ -39,6 +39,13 @@ function onSourceChange(value: string) {
   setConfig(config.value).catch(() => {});
 }
 
+/** 玩家名：改完立刻存（启动时直接读这份） */
+function onPlayerNameChange(value: string) {
+  if (!config.value) return;
+  config.value.playerName = value.trim();
+  setConfig(config.value).catch(() => {});
+}
+
 async function save() {
   if (!config.value) return;
   await setConfig(config.value);
@@ -88,6 +95,19 @@ async function save() {
             {{ l.label }}
           </button>
         </div>
+      </div>
+      <div class="row">
+        <div class="row-main">
+          <div class="label">{{ t("versions.playerName") }}</div>
+          <div class="desc">离线账户名字（3-16 位，字母数字下划线）</div>
+        </div>
+        <input
+          v-model="config.playerName"
+          class="input mono"
+          maxlength="16"
+          spellcheck="false"
+          @change="onPlayerNameChange(($event.target as HTMLInputElement).value)"
+        />
       </div>
     </section>
 
@@ -232,6 +252,23 @@ h1 {
   color: var(--ink);
   font-weight: 500;
   box-shadow: var(--shadow);
+}
+
+/* 文本输入框（玩家名） */
+.input {
+  width: 150px;
+  padding: 5px 9px;
+  font-size: 11.5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card-hover);
+  color: var(--ink);
+  outline: none;
+  text-align: right;
+}
+
+.input:focus {
+  border-color: var(--ink-3);
 }
 
 .badge {

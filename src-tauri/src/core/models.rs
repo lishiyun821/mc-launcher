@@ -190,6 +190,13 @@ pub enum DownloadSource {
 pub struct AppConfig {
     pub download_source: DownloadSource,
     pub language: String,
+    /// 离线账户名字（启动时用）
+    #[serde(default = "default_player_name")]
+    pub player_name: String,
+}
+
+fn default_player_name() -> String {
+    "MyisaCN".to_string()
 }
 
 impl Default for AppConfig {
@@ -197,6 +204,7 @@ impl Default for AppConfig {
         Self {
             download_source: DownloadSource::Official,
             language: "zh-CN".to_string(),
+            player_name: default_player_name(),
         }
     }
 }

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { fetchVersionManifest, listLocalVersions, installVersion } from "@/services/ipc";
+import { fetchVersionManifest, listLocalVersions, installVersion, launchVersion, getConfig } from "@/services/ipc";
 import { useI18n } from "@/i18n";
-import type { InstallReport, VersionManifest, VersionSummary } from "@/types";
+import type { InstallReport, LaunchReport, VersionManifest, VersionSummary } from "@/types";
 
 const { t } = useI18n();
 
@@ -40,6 +40,8 @@ async function load(force = false) {
 }
 
 onMounted(async () => {
+  const cfg = await getConfig().catch(() => null);
+  if (cfg?.playerName) playerName.value = cfg.playerName;
   await load();
   local.value = await listLocalVersions().catch(() => []);
 });
@@ -85,6 +87,38 @@ function reportLine(r: InstallReport) {
   if (r.failed.length) parts.push(`⚠ ${r.failed.length} 个失败`);
   return parts.join("  ·  ");
 }
+
+/* ───── 启动（M3） ───── */
+
+const playerName = ref("MyisaCN");
+const launchingId = ref<string | null>(null);
+const launchReports = ref<Record<string, LaunchReport>>({});
+const launchError = ref("");
+
+async function play(v: VersionSummary) {
+  if (launchingId.value !== null) return;
+  launchingId.value = v.id;
+  launchError.value = "";
+  try {
+    const r = await launchVersion(v.id, playerName.value);
+    launchReports.value = { ...launchReports.value, [v.id]: r };
+  } catch (e) {
+    launchError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    launchingId.value = null;
+  }
+}
+
+function launchLine(r: LaunchReport) {
+  return [
+    `PID ${r.pid}`,
+    `Java ${r.javaMajor}`,
+    `${r.classpathCount} 项 classpath`,
+    `${r.memoryMb} MB 堆`,
+    r.account,
+    r.uuid,
+  ].join("  ·  ");
+}
 </script>
 
 <template>
@@ -125,6 +159,7 @@ function reportLine(r: InstallReport) {
     </div>
 
     <div v-if="error" class="err mono">{{ error }}</div>
+    <div v-if="launchError" class="err mono">{{ launchError }}</div>
 
     <div class="list">
       <div v-if="loading && !manifest" class="empty">{{ t("versions.loading") }}</div>
@@ -141,6 +176,14 @@ function reportLine(r: InstallReport) {
         <span v-if="isLocal(v.id)" class="tag local">{{ t("versions.installed") }}</span>
         <span class="spacer"></span>
         <span class="date mono">{{ shortDate(v.releaseTime) }}</span>
+        <button
+          v-if="isLocal(v.id)"
+          class="mini play"
+          :disabled="launchingId !== null || installingId !== null"
+          @click="play(v)"
+        >
+          {{ launchingId === v.id ? t("versions.launching") : t("versions.play") }}
+        </button>
         <button class="mini" :disabled="installingId !== null" @click="install(v)">
           {{
             installingId === v.id
@@ -151,6 +194,9 @@ function reportLine(r: InstallReport) {
           }}
         </button>
         <div v-if="reports[v.id]" class="report mono">{{ reportLine(reports[v.id]) }}</div>
+        <div v-if="launchReports[v.id]" class="report ok mono">
+          {{ launchLine(launchReports[v.id]) }}
+        </div>
       </div>
     </div>
   </div>
@@ -368,5 +414,24 @@ h1 {
   line-height: 1.5;
   color: var(--ink-3);
   word-break: break-all;
+}
+
+/* 启动按钮：主色实心，和安装区分开 */
+.mini.play {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.mini.play:hover:not(:disabled) {
+  opacity: 0.82;
+}
+
+.report.ok {
+  color: var(--ink-2);
+}
+
+.report.err {
+  color: #d14343;
 }
 </style>

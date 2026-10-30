@@ -229,6 +229,40 @@ fn save_resolved(versions_dir: &Path, rv: &ResolvedVersion) -> Result<PathBuf, a
     Ok(path)
 }
 
+/// 从合并后的版本 JSON 重建（启动时读磁盘上的 <id>.json）
+pub fn from_merged(json: &VersionJson) -> Result<ResolvedVersion, anyhow::Error> {
+    let main_class = json
+        .main_class
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("版本定义缺少 mainClass"))?;
+    let asset_index = json
+        .asset_index
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("版本定义缺少 assetIndex"))?;
+    let client = json
+        .downloads
+        .as_ref()
+        .and_then(|d| d.client.clone())
+        .ok_or_else(|| anyhow::anyhow!("版本定义缺少客户端 jar 信息"))?;
+
+    Ok(ResolvedVersion {
+        id: json.id.clone(),
+        kind: json.kind.clone(),
+        main_class,
+        libraries: json.libraries.clone(),
+        asset_index,
+        client,
+        java_major: json.java_version.as_ref().and_then(|j| j.major_version),
+        arguments: json.arguments.clone().unwrap_or(Arguments {
+            game: Vec::new(),
+            jvm: Vec::new(),
+        }),
+        minecraft_arguments: json.minecraft_arguments.clone(),
+        release_time: json.release_time.clone(),
+        chain: vec![json.id.clone()],
+    })
+}
+
 /// Maven 坐标去重键：`group:artifact`（带 classifier 时保留 classifier）
 fn library_key(name: &str) -> String {
     let base = name.split('@').next().unwrap_or(name);

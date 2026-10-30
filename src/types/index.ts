@@ -52,6 +52,24 @@ export type Lang = "zh-CN" | "en";
 export interface AppConfig {
   downloadSource: DownloadSource;
   language: Lang;
+  /** 离线账户名字 */
+  playerName: string;
+}
+
+/** 启动结果 */
+export interface LaunchReport {
+  pid: number;
+  version: string;
+  mainClass: string;
+  java: string;
+  javaMajor: number;
+  account: string;
+  uuid: string;
+  classpathCount: number;
+  memoryMb: number;
+  commandPreview: string;
+  gameDir: string;
+  missing: string[];
 }
 
 /** 安装结果报告 */
