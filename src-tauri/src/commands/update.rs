@@ -67,69 +67,67 @@ fn is_newer(latest: &str, current: &str) -> bool {
     false
 }
 
-pub async fn check(http: &reqwest::Client) -> UpdateInfo {
-    let mut info = UpdateInfo::base();
+/// 用 `releases/latest` 的 HTTP 重定向拿最新 tag
+///
+/// 这条路**不走 API**，所以不会被 GitHub 的「未认证 60 次/小时」限流卡住，
+/// 用户一天点多少次都行。
+async fn via_redirect(http: &reqwest::Client) -> Option<String> {
+    let url = format!("https://github.com/{REPO}/releases/latest");
+    let res = http.get(&url).send().await.ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+    let final_url = res.url().as_str().to_string();
+    // 有 release → .../releases/tag/v0.1.0
+    // 没 release → .../releases （没有 /tag/）
+    final_url
+        .rsplit_once("/tag/")
+        .map(|(_, tag)| tag.trim_end_matches('/').to_string())
+        .filter(|t| !t.is_empty())
+}
 
+/// 顺手从 API 取 release 说明；被限流就当没有，不影响主流程
+async fn try_notes(http: &reqwest::Client) -> Option<(Option<String>, Option<String>)> {
     let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
-    let res = match http
+    let res = http
         .get(&url)
         .header("Accept", "application/vnd.github+json")
         .send()
         .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            info.error = Some(format!("连不上 GitHub：{e}"));
-            return info;
-        }
-    };
-
-    if res.status() == reqwest::StatusCode::NOT_FOUND {
-        info.error = Some("还没有发布过版本".to_string());
-        return info;
-    }
-
+        .ok()?;
     if !res.status().is_success() {
-        info.error = Some(format!("GitHub 返回 HTTP {}", res.status().as_u16()));
-        return info;
+        return None;
     }
-
-    let body: serde_json::Value = match res.json().await {
-        Ok(v) => v,
-        Err(e) => {
-            info.error = Some(format!("响应解析失败：{e}"));
-            return info;
-        }
-    };
-
-    let tag = body
-        .get("tag_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    if tag.is_empty() {
-        info.error = Some("发布信息里没有版本号".to_string());
-        return info;
-    }
-
-    let ver = tag.trim_start_matches(['v', 'V']).to_string();
-
-    info.has_update = is_newer(&ver, CURRENT);
-    info.latest = Some(ver);
-    info.url = body
-        .get("html_url")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| format!("https://github.com/{REPO}/releases"));
-    info.notes = body
+    let body: serde_json::Value = res.json().await.ok()?;
+    let notes = body
         .get("body")
         .and_then(|v| v.as_str())
-        .map(|s| s.chars().take(2000).collect());
-    info.published_at = body
+        .map(|s| s.chars().take(2000).collect::<String>());
+    let at = body
         .get("published_at")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    Some((notes, at))
+}
+
+pub async fn check(http: &reqwest::Client) -> UpdateInfo {
+    let mut info = UpdateInfo::base();
+
+    let Some(tag) = via_redirect(http).await else {
+        info.error = Some("还没有发布过版本".to_string());
+        return info;
+    };
+
+    let ver = tag.trim_start_matches(['v', 'V']).to_string();
+    info.has_update = is_newer(&ver, CURRENT);
+    info.latest = Some(ver);
+    info.url = format!("https://github.com/{REPO}/releases/tag/{tag}");
+
+    // 说明和时间可选，拿不到也正常（API 限流）
+    if let Some((notes, at)) = try_notes(http).await {
+        info.notes = notes;
+        info.published_at = at;
+    }
 
     info
 }
