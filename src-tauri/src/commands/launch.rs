@@ -118,8 +118,23 @@ async fn do_launch(
     /* ⑤ natives 目录 */
     let natives_dir = mc_dir.join("versions").join(id).join("natives");
 
-    /* ⑥ 组装参数 */
-    let acct = account::Account::offline(name);
+    /* ⑥ 组装参数：优先用当前登录的正版账户，没有就离线 */
+    let acct = match crate::services::auth::store::active() {
+        Some(a) if a.is_msa() => {
+            if a.is_expired() {
+                return Err(anyhow::anyhow!(
+                    "账户 {} 的登录已过期，去「账户」页点一下续期",
+                    a.name
+                ));
+            }
+            tracing::info!("使用正版账户启动: {}", a.name);
+            account::Account::from_stored(&a)
+        }
+        _ => {
+            tracing::info!("没有登录账户，使用离线模式: {name}");
+            account::Account::offline(name)
+        }
+    };
     let opt = LaunchOptions {
         java: PathBuf::from(&java.path),
         mc_dir: mc_dir.clone(),

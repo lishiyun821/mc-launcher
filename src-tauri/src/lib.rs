@@ -41,6 +41,13 @@ pub fn run() {
             commands::instance::duplicate_instance,
             commands::instance::open_instance_folder,
             commands::instance::open_game_folder,
+            // auth
+            commands::auth::list_accounts,
+            commands::auth::ms_login_start,
+            commands::auth::ms_login_poll,
+            commands::auth::remove_account,
+            commands::auth::set_active_account,
+            commands::auth::refresh_account,
             // task
             commands::task::list_tasks,
             commands::task::cancel_task,

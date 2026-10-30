@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// 离线账户（微软登录在 M5）
+/// 启动用的账户（离线或正版）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Account {
@@ -8,10 +8,13 @@ pub struct Account {
     pub name: String,
     /// 无横线 UUID（32 位小写十六进制）
     pub uuid: String,
-    /// 访问令牌，离线模式填一个占位符
+    /// 访问令牌，离线模式填占位符
     pub access_token: String,
     /// 账户类型：msa / legacy / offline
     pub user_type: String,
+    /// 正版账户的 xuid（离线留空）
+    #[serde(default)]
+    pub xuid: String,
 }
 
 impl Account {
@@ -26,6 +29,18 @@ impl Account {
             // 离线模式没有真令牌，但要给个非空值，否则部分版本会报鉴权失败
             access_token: "0".repeat(32),
             user_type: "legacy".to_string(),
+            xuid: String::new(),
+        }
+    }
+
+    /// 从已保存的正版账户构造
+    pub fn from_stored(a: &crate::services::auth::StoredAccount) -> Self {
+        Self {
+            name: a.name.clone(),
+            uuid: a.id.clone(),
+            access_token: a.access_token.clone(),
+            user_type: "msa".to_string(),
+            xuid: a.xuid.clone().unwrap_or_default(),
         }
     }
 

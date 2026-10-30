@@ -8,10 +8,11 @@ import type { TaskInfo } from "@/types";
 import HomeView from "@/views/HomeView.vue";
 import VersionsView from "@/views/VersionsView.vue";
 import InstancesView from "@/views/InstancesView.vue";
+import AuthView from "@/views/AuthView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 import TaskBar from "@/components/TaskBar.vue";
 
-type Page = "home" | "versions" | "instances" | "settings";
+type Page = "home" | "versions" | "instances" | "auth" | "settings";
 
 const { t, setLang } = useI18n();
 
@@ -23,6 +24,7 @@ const nav = computed(() => [
   { key: "home" as Page, label: t("nav.home"), hint: t("nav.homeHint") },
   { key: "versions" as Page, label: t("nav.versions"), hint: t("nav.versionsHint") },
   { key: "instances" as Page, label: t("nav.instances"), hint: t("nav.instancesHint") },
+  { key: "auth" as Page, label: t("nav.auth"), hint: t("nav.authHint") },
   { key: "settings" as Page, label: t("nav.settings"), hint: t("nav.settingsHint") },
 ]);
 
@@ -92,6 +94,7 @@ onUnmounted(() => unlisten?.());
       <HomeView v-if="page === 'home'" @goto="page = $event" />
       <VersionsView v-else-if="page === 'versions'" />
       <InstancesView v-else-if="page === 'instances'" />
+      <AuthView v-else-if="page === 'auth'" />
       <SettingsView v-else />
     </main>
 

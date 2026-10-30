@@ -20,6 +20,11 @@ pub struct Downloader {
 }
 
 impl Downloader {
+    /// 借用内部的 HTTP 客户端（登录、访问 API 时用）
+    pub fn http(&self) -> &reqwest::Client {
+        &self.client
+    }
+
     pub fn new(prefer: DownloadSource) -> Self {
         let client = reqwest::Client::builder()
             .user_agent("mc-launcher/0.1.0 (+https://github.com/)")

@@ -46,9 +46,9 @@ fn variables(rv: &ResolvedVersion, opt: &LaunchOptions) -> HashMap<&'static str,
     m.insert("user_type", opt.account.user_type.clone());
     m.insert("user_properties", "{}".to_string());
 
-    // 微软账户专有，离线模式留空
+    // 微软账户专有：正版才带 xuid
     m.insert("clientid", String::new());
-    m.insert("auth_xuid", String::new());
+    m.insert("auth_xuid", opt.account.xuid.clone());
 
     m.insert("version_name", rv.id.clone());
     m.insert("version_type", rv.kind.clone().unwrap_or_else(|| "release".into()));

@@ -90,6 +90,44 @@ export interface InstanceInfo {
   chain: string[];
 }
 
+/** 微软登录的设备码 */
+export interface DeviceCode {
+  deviceCode: string;
+  /** 给用户输的短码 */
+  userCode: string;
+  /** 浏览器打开的地址 */
+  verificationUri: string;
+  expiresIn: number;
+  /** 轮询间隔（秒） */
+  interval: number;
+  message: string;
+}
+
+/** 账户信息（不含令牌） */
+export interface AccountInfo {
+  id: string;
+  name: string;
+  uuid: string;
+  /** msa / offline */
+  kind: string;
+  skinUrl: string | null;
+  capeUrl: string | null;
+  expiresAt: number;
+  expired: boolean;
+  active: boolean;
+}
+
+export interface AccountsView {
+  accounts: AccountInfo[];
+  active: string | null;
+}
+
+/** 轮询结果 */
+export type LoginState =
+  | { state: "pending" }
+  | { state: "success"; account: AccountInfo }
+  | { state: "failed"; message: string };
+
 /** 启动结果 */
 export interface LaunchReport {
   pid: number;

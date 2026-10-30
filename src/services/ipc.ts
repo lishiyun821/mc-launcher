@@ -69,6 +69,26 @@ export const openInstanceFolder = (id: string) =>
 
 export const openGameFolder = () => call<string>("open_game_folder");
 
+/* ───────── 账户 ───────── */
+
+export const listAccounts = () =>
+  call<import("@/types").AccountsView>("list_accounts");
+
+export const msLoginStart = () =>
+  call<import("@/types").DeviceCode>("ms_login_start");
+
+export const msLoginPoll = (deviceCode: string) =>
+  call<import("@/types").LoginState>("ms_login_poll", { deviceCode });
+
+export const removeAccount = (id: string) =>
+  call<import("@/types").AccountsView>("remove_account", { id });
+
+export const setActiveAccount = (id: string) =>
+  call<import("@/types").AccountsView>("set_active_account", { id });
+
+export const refreshAccount = (id: string) =>
+  call<import("@/types").AccountInfo>("refresh_account", { id });
+
 /* ───────── 任务 ───────── */
 
 export const listTasks = () => call<import("@/types").TaskInfo[]>("list_tasks");
