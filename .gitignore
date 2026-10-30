@@ -23,3 +23,6 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 *.swp
+
+# 开发期随手存的截图（正式图在 docs/screenshots）
+_旧截图/
