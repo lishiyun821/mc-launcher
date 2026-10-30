@@ -162,6 +162,11 @@ function fmtExpire(sec: number) {
   return d.toLocaleString();
 }
 
+/** 悬停提示：令牌具体有效到什么时候、什么时候会自动续 */
+function renewTip(a: AccountInfo) {
+  return t("auth.renewTip").replace("{time}", fmtExpire(a.expiresAt));
+}
+
 function initial(name: string) {
   return (name || "?").slice(0, 1).toUpperCase();
 }
@@ -218,8 +223,16 @@ function initial(name: string) {
           <span class="tag" :class="activeAccount.kind === 'msa' ? 'good' : ''">
             {{ activeAccount.kind === "msa" ? t("auth.typeMsa") : t("auth.typeOffline") }}
           </span>
-          <span v-if="activeAccount.expired" class="tag warn">{{ t("auth.expired") }}</span>
-          <span v-else class="tag">{{ t("auth.validUntil") }} {{ fmtExpire(activeAccount.expiresAt) }}</span>
+          <span
+            v-if="activeAccount.expired"
+            class="tag warn"
+            :title="renewTip(activeAccount)"
+          >{{ t("auth.expiredAuto") }}</span>
+          <span
+            v-else-if="activeAccount.kind === 'msa'"
+            class="tag"
+            :title="renewTip(activeAccount)"
+          >{{ t("auth.autoRenew") }}</span>
         </div>
       </div>
       <div class="now-actions">
