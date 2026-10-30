@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: 检查与测试（Windows）
+    runs-on: windows-latest
+    steps:
+      - name: 拉代码
+        uses: actions/checkout@v4
+
+      - name: 装 Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust 编译缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: 装 pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: 装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 装前端依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 前端类型检查
+        run: pnpm exec vue-tsc --noEmit
+
+      - name: 前端构建
+        run: pnpm exec vite build
+
+      - name: Rust 检查
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets
+
+      - name: Rust 单元测试
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
