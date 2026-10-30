@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { getVersion } from "@tauri-apps/api/app";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { onTaskUpdated } from "@/services/events";
 import { getConfig, listTasks } from "@/services/ipc";
@@ -16,6 +17,8 @@ import TaskBar from "@/components/TaskBar.vue";
 type Page = "home" | "versions" | "instances" | "auth" | "settings";
 
 const { t, setLang } = useI18n();
+
+const appVersion = ref("");
 
 const page = ref<Page>("home");
 const tasks = ref<TaskInfo[]>([]);
@@ -35,6 +38,9 @@ const activeTask = computed(
 const hasTasks = computed(() => tasks.value.length > 0);
 
 onMounted(async () => {
+  // 版本号从运行时读，跟打包进 exe 的版本永远一致
+  appVersion.value = await getVersion().catch(() => "");
+
   // 启动时应用已保存的语言和主题
   const cfg = await getConfig().catch(() => null);
   if (cfg?.language) setLang(cfg.language as "zh-CN" | "en");
@@ -60,7 +66,7 @@ onUnmounted(() => unlisten?.());
         </div>
         <div class="brand-text">
           <div class="name">MC Launcher</div>
-          <div class="ver mono">v0.1.0</div>
+          <div class="ver mono">v{{ appVersion }}</div>
         </div>
       </div>
 

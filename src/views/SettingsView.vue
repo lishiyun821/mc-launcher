@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getVersion } from "@tauri-apps/api/app";
 import { computed, onMounted, ref } from "vue";
 import { getConfig, setConfig, scanJava, installJava, checkUpdate, type JavaInfo, type UpdateInfo } from "@/services/ipc";
 import { useI18n, languages } from "@/i18n";
@@ -16,8 +17,10 @@ const config = ref<AppConfig | null>(null);
 const javas = ref<JavaInfo[]>([]);
 const saved = ref(false);
 const loadingJava = ref(true);
+const appVersion = ref("");
 
 onMounted(async () => {
+  appVersion.value = await getVersion().catch(() => "");
   config.value = await getConfig().catch(() => null);
   javas.value = await scanJava().catch(() => []);
   loadingJava.value = false;
@@ -275,7 +278,7 @@ async function save() {
         <div class="row-main">
           <div class="label">MC Launcher</div>
           <div class="about-meta">
-            <span class="ver mono">v{{ upd?.current || "0.1.0" }}</span>
+            <span class="ver mono">v{{ upd?.current || appVersion }}</span>
             <span class="dot">·</span>
             <span>MIT</span>
             <span class="dot">·</span>
