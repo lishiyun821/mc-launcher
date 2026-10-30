@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { getConfig, setConfig, scanJava, installJava, type JavaInfo } from "@/services/ipc";
+import { getConfig, setConfig, scanJava, installJava, checkUpdate, type JavaInfo, type UpdateInfo } from "@/services/ipc";
 import { useI18n, languages } from "@/i18n";
 import { applyTheme } from "@/services/theme";
 import type { AppConfig, Lang } from "@/types";
@@ -68,6 +68,31 @@ const themeOptions = computed(() => [
   { value: "light", label: t("settings.themeLight") },
   { value: "dark", label: t("settings.themeDark") },
 ]);
+
+/* ───────── 更新检查 ───────── */
+
+const checking = ref(false);
+const upd = ref<UpdateInfo | null>(null);
+
+async function doCheckUpdate() {
+  if (checking.value) return;
+  checking.value = true;
+  try {
+    upd.value = await checkUpdate();
+  } catch (e) {
+    upd.value = {
+      current: "?",
+      latest: null,
+      hasUpdate: false,
+      url: "",
+      notes: null,
+      publishedAt: null,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  } finally {
+    checking.value = false;
+  }
+}
 
 /* ───────── Java 自动下载 ───────── */
 
@@ -234,6 +259,27 @@ async function save() {
       <button class="btn primary" @click="save">{{ t("settings.save") }}</button>
       <span v-if="saved" class="ok">{{ t("settings.saved") }}</span>
     </div>
+
+    <section class="group">
+      <h3>{{ t("settings.about") }}</h3>
+      <div class="row">
+        <div class="row-main">
+          <div class="label mono">MC Launcher {{ upd?.current || "0.1.0" }}</div>
+          <div class="desc">
+            <span v-if="checking">{{ t("settings.checking") }}</span>
+            <a v-else-if="upd?.hasUpdate" :href="upd.url" target="_blank" class="link">
+              {{ t("settings.newVersion") }} {{ upd.latest }} → {{ t("settings.goDownload") }}
+            </a>
+            <span v-else-if="upd?.error" class="warn">{{ upd.error }}</span>
+            <span v-else-if="upd">{{ t("settings.upToDate") }}</span>
+            <span v-else class="mono">MIT · github.com/lishiyun821/mc-launcher</span>
+          </div>
+        </div>
+        <button class="btn" :disabled="checking" @click="doCheckUpdate">
+          {{ checking ? t("settings.checking") : t("settings.checkUpdate") }}
+        </button>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -404,5 +450,15 @@ h1 {
 .ok {
   font-size: 11.5px;
   color: var(--ok);
+}
+
+.link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.warn {
+  color: #b4763a;
 }
 </style>

@@ -54,6 +54,7 @@ pub fn run() {
             commands::task::list_tasks,
             commands::task::cancel_task,
             // java
+            commands::update::check_update,
             commands::java::scan_java,
             commands::java::list_java_runtimes,
             commands::java::java_remote_info,

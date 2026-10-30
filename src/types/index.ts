@@ -194,3 +194,14 @@ export interface InstallReport {
   totalBytes: number;
   elapsedMs: number;
 }
+
+/** 启动器自身更新检查（只查 GitHub Releases，不自动安装） */
+export interface UpdateInfo {
+  current: string;
+  latest: string | null;
+  hasUpdate: boolean;
+  url: string;
+  notes: string | null;
+  publishedAt: string | null;
+  error: string | null;
+}

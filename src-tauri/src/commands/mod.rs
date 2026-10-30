@@ -5,4 +5,5 @@ pub mod instance;
 pub mod java;
 pub mod launch;
 pub mod task;
+pub mod update;
 pub mod version;

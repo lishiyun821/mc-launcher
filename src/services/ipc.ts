@@ -1,3 +1,5 @@
+import type { UpdateInfo } from "@/types";
+export type { UpdateInfo };
 import { invoke } from "@tauri-apps/api/core";
 
 /**
@@ -128,6 +130,10 @@ export const javaRemoteInfo = (major: number) =>
 
 export const installJava = (major: number) =>
   call<string>("install_java", { major });
+
+/* ───────── 更新检查 ───────── */
+
+export const checkUpdate = () => call<UpdateInfo>("check_update");
 
 export interface JavaInfo {
   path: string;
