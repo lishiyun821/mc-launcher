@@ -193,10 +193,23 @@ pub struct AppConfig {
     /// 离线账户名字（启动时用）
     #[serde(default = "default_player_name")]
     pub player_name: String,
+    /// 首页选中的实例 id
+    #[serde(default)]
+    pub active_instance: Option<String>,
+    /// 主题：system / light / dark
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    /// 下载限速 KB/s（0 = 不限）
+    #[serde(default)]
+    pub download_limit_kbps: u32,
 }
 
 fn default_player_name() -> String {
     "MyisaCN".to_string()
+}
+
+fn default_theme() -> String {
+    "system".to_string()
 }
 
 impl Default for AppConfig {
@@ -205,6 +218,9 @@ impl Default for AppConfig {
             download_source: DownloadSource::Official,
             language: "zh-CN".to_string(),
             player_name: default_player_name(),
+            active_instance: None,
+            theme: default_theme(),
+            download_limit_kbps: 0,
         }
     }
 }

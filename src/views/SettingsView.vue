@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { getConfig, setConfig, scanJava, type JavaInfo } from "@/services/ipc";
+import { getConfig, setConfig, scanJava, installJava, type JavaInfo } from "@/services/ipc";
 import { useI18n, languages } from "@/i18n";
+import { applyTheme } from "@/services/theme";
 import type { AppConfig, Lang } from "@/types";
 
 const { t, setLang } = useI18n();
@@ -44,6 +45,49 @@ function onPlayerNameChange(value: string) {
   if (!config.value) return;
   config.value.playerName = value.trim();
   setConfig(config.value).catch(() => {});
+}
+
+/** 主题：立刻应用 + 落盘 */
+function onThemeChange(value: string) {
+  applyTheme(value);
+  if (!config.value) return;
+  config.value.theme = value;
+  setConfig(config.value).catch(() => {});
+}
+
+/** 下载限速（KB/s，0 = 不限） */
+function onLimitChange(value: string) {
+  if (!config.value) return;
+  const n = Number(value);
+  config.value.downloadLimitKbps = Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  setConfig(config.value).catch(() => {});
+}
+
+const themeOptions = computed(() => [
+  { value: "system", label: t("settings.themeSystem") },
+  { value: "light", label: t("settings.themeLight") },
+  { value: "dark", label: t("settings.themeDark") },
+]);
+
+/* ───────── Java 自动下载 ───────── */
+
+const javaBusy = ref<number | null>(null);
+const javaMsg = ref("");
+
+async function downloadJava(major: number) {
+  if (javaBusy.value !== null) return;
+  javaBusy.value = major;
+  javaMsg.value = `${t("settings.javaDownloading")} Java ${major}…`;
+  try {
+    const path = await installJava(major);
+    javaMsg.value = `Java ${major} ✓ ${path}`;
+    // 重新扫一遍，把它显示进列表
+    javas.value = await scanJava().catch(() => javas.value);
+  } catch (e) {
+    javaMsg.value = `${t("settings.javaFailed")}${e instanceof Error ? e.message : String(e)}`;
+  } finally {
+    javaBusy.value = null;
+  }
 }
 
 async function save() {
@@ -98,6 +142,36 @@ async function save() {
       </div>
       <div class="row">
         <div class="row-main">
+          <div class="label">{{ t("settings.theme") }}</div>
+          <div class="desc">{{ t("settings.themeDesc") }}</div>
+        </div>
+        <div class="seg">
+          <button
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            :class="{ on: (config?.theme ?? 'system') === opt.value }"
+            @click="onThemeChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-main">
+          <div class="label">{{ t("settings.downloadLimit") }}</div>
+          <div class="desc">{{ t("settings.downloadLimitDesc") }}</div>
+        </div>
+        <input
+          class="input mono"
+          type="number"
+          min="0"
+          step="256"
+          :value="config?.downloadLimitKbps ?? 0"
+          @change="onLimitChange(($event.target as HTMLInputElement).value)"
+        />
+      </div>
+      <div class="row">
+        <div class="row-main">
           <div class="label">{{ t("versions.playerName") }}</div>
           <div class="desc">离线账户名字（3-16 位，字母数字下划线）</div>
         </div>
@@ -131,6 +205,28 @@ async function save() {
         </div>
         <span class="badge">{{ j.major }}</span>
         <span v-if="j.is64Bit" class="badge">{{ t("settings.bit64") }}</span>
+      </div>
+
+      <div class="row">
+        <div class="row-main">
+          <div class="label">{{ t("settings.javaAuto") }}</div>
+          <div class="desc">{{ t("settings.javaAutoDesc") }}</div>
+        </div>
+        <div class="seg">
+          <button
+            v-for="m in [8, 17, 21]"
+            :key="m"
+            :disabled="javaBusy !== null"
+            @click="downloadJava(m)"
+          >
+            {{ javaBusy === m ? "…" : "Java " + m }}
+          </button>
+        </div>
+      </div>
+      <div v-if="javaMsg" class="row">
+        <div class="row-main">
+          <div class="desc mono">{{ javaMsg }}</div>
+        </div>
       </div>
     </section>
 

@@ -25,6 +25,7 @@ pub async fn run(
     plan: &DownloadPlan,
     mc_dir: &std::path::Path,
     concurrency: usize,
+    limit_kbps: u32,
     task: &TaskHandle,
 ) -> Result<RunStats, anyhow::Error> {
     let started = std::time::Instant::now();
@@ -33,8 +34,13 @@ pub async fn run(
     let total_bytes = files.iter().filter_map(|f| f.size).sum::<u64>();
 
     tracing::info!(
-        "开始下载 {total} 个文件，合计 {:.1} MB，并发 {concurrency}",
-        total_bytes as f64 / 1024.0 / 1024.0
+        "开始下载 {total} 个文件，合计 {:.1} MB，并发 {concurrency}{}",
+        total_bytes as f64 / 1024.0 / 1024.0,
+        if limit_kbps > 0 {
+            format!("，限速 {limit_kbps} KB/s")
+        } else {
+            String::new()
+        }
     );
 
     let done = Arc::new(AtomicUsize::new(0));
@@ -44,6 +50,7 @@ pub async fn run(
     let last_push = Arc::new(AtomicU64::new(0));
 
     let dl = Arc::new(FileDownloader::new());
+    dl.set_limit_kbps(limit_kbps);
     let sem = Arc::new(tokio::sync::Semaphore::new(concurrency.max(1)));
     let mut set = tokio::task::JoinSet::new();
 

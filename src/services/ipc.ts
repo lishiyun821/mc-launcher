@@ -69,6 +69,12 @@ export const openInstanceFolder = (id: string) =>
 
 export const openGameFolder = () => call<string>("open_game_folder");
 
+export const readInstanceLog = (id: string, lines?: number) =>
+  call<import("@/types").LogView>("read_instance_log", { id, lines: lines ?? null });
+
+export const verifyInstance = (id: string) =>
+  call<import("@/types").VerifyReport>("verify_instance", { id });
+
 /* ───────── 账户 ───────── */
 
 export const listAccounts = () =>
@@ -98,6 +104,30 @@ export const cancelTask = (taskId: string) => call<void>("cancel_task", { taskId
 /* ───────── 系统 ───────── */
 
 export const scanJava = () => call<JavaInfo[]>("scan_java");
+
+/* ───────── Java 运行时 ───────── */
+
+export interface RuntimeInfo {
+  major: number;
+  path: string;
+}
+
+export interface JreInfo {
+  major: number;
+  version: string;
+  url: string;
+  size: number;
+  name: string;
+}
+
+export const listJavaRuntimes = () =>
+  call<RuntimeInfo[]>("list_java_runtimes");
+
+export const javaRemoteInfo = (major: number) =>
+  call<JreInfo>("java_remote_info", { major });
+
+export const installJava = (major: number) =>
+  call<string>("install_java", { major });
 
 export interface JavaInfo {
   path: string;

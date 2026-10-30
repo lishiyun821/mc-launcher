@@ -41,6 +41,8 @@ pub fn run() {
             commands::instance::duplicate_instance,
             commands::instance::open_instance_folder,
             commands::instance::open_game_folder,
+            commands::instance::read_instance_log,
+            commands::instance::verify_instance,
             // auth
             commands::auth::list_accounts,
             commands::auth::ms_login_start,
@@ -53,6 +55,9 @@ pub fn run() {
             commands::task::cancel_task,
             // java
             commands::java::scan_java,
+            commands::java::list_java_runtimes,
+            commands::java::java_remote_info,
+            commands::java::install_java,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

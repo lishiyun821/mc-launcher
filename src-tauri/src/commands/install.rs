@@ -99,7 +99,8 @@ async fn do_install(
 
     // ④ 并发下载全部内容
     task.progress(0.10, "开始下载").await;
-    let stats = runner::run(&dl_plan, &mc_dir, 16, task).await?;
+    let limit = state.config.read().await.download_limit_kbps;
+    let stats = runner::run(&dl_plan, &mc_dir, 16, limit, task).await?;
 
     // ⑤ 解压 natives
     task.progress(0.96, "解压 natives").await;

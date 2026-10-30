@@ -10,9 +10,11 @@ import {
   openGameFolder,
   openInstanceFolder,
   updateInstance,
+  verifyInstance,
 } from "@/services/ipc";
 import { useI18n } from "@/i18n";
-import type { InstanceConfig, InstanceInfo } from "@/types";
+import type { InstanceConfig, InstanceInfo, VerifyReport } from "@/types";
+import LogModal from "@/components/LogModal.vue";
 
 const { t } = useI18n();
 
@@ -31,6 +33,13 @@ const saving = ref(false);
 
 /** 删除二次确认 */
 const confirming = ref<string | null>(null);
+
+/** 日志弹窗 */
+const logTarget = ref<InstanceInfo | null>(null);
+
+/** 校验状态 */
+const verifying = ref<string | null>(null);
+const verifyResults = ref<Record<string, VerifyReport>>({});
 
 const totalSize = computed(() => items.value.reduce((s, i) => s + i.sizeBytes, 0));
 
@@ -159,6 +168,30 @@ async function openFolder(it: InstanceInfo) {
     error.value = e instanceof Error ? e.message : String(e);
   });
 }
+
+function openLog(it: InstanceInfo) {
+  logTarget.value = it;
+}
+
+async function doVerify(it: InstanceInfo) {
+  if (verifying.value) return;
+  verifying.value = it.id;
+  try {
+    const r = await verifyInstance(it.id);
+    verifyResults.value = { ...verifyResults.value, [it.id]: r };
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    verifying.value = null;
+  }
+}
+
+function verifyLine(r: VerifyReport) {
+  if (r.ok) {
+    return `${t("instances.verifyOk")} · ${r.total} 项 classpath · ${r.nativeFiles} natives · ${r.checkedMs} ms`;
+  }
+  return `${t("instances.verifyBad")} · 缺 ${r.missing.length}/${r.total} 项（例: ${r.missing[0] ?? "-"}）`;
+}
 </script>
 
 <template>
@@ -210,6 +243,10 @@ async function openFolder(it: InstanceInfo) {
               {{ editing === it.id ? t("instances.close") : t("instances.settings") }}
             </button>
             <button class="mini" @click="openFolder(it)">{{ t("instances.folder") }}</button>
+            <button class="mini" @click="openLog(it)">{{ t("instances.log") }}</button>
+            <button class="mini" :disabled="verifying === it.id" @click="doVerify(it)">
+              {{ verifying === it.id ? t("instances.verifying") : t("instances.verify") }}
+            </button>
             <button class="mini" @click="doDuplicate(it)">{{ t("instances.duplicate") }}</button>
             <button class="mini danger" @click="askDelete(it.id)">{{ t("instances.remove") }}</button>
           </div>
@@ -222,6 +259,14 @@ async function openFolder(it: InstanceInfo) {
           :class="{ bad: reports[it.id].startsWith('启动失败') }"
         >
           {{ reports[it.id] }}
+        </div>
+
+        <div
+          v-if="verifyResults[it.id]"
+          class="report mono"
+          :class="{ bad: !verifyResults[it.id].ok }"
+        >
+          {{ verifyLine(verifyResults[it.id]) }}
         </div>
 
         <!-- 删除确认 -->
@@ -285,6 +330,13 @@ async function openFolder(it: InstanceInfo) {
         </div>
       </div>
     </div>
+
+    <LogModal
+      v-if="logTarget"
+      :instance-id="logTarget.id"
+      :title="t('instances.log') + ' · ' + logTarget.name"
+      @close="logTarget = null"
+    />
   </div>
 </template>
 

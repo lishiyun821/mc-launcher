@@ -45,7 +45,16 @@ pub async fn scan() -> Vec<JavaInfo> {
         }
     }
 
-    // 4) 去重
+    // 4) 启动器自己下载的运行时
+    if let Ok(entries) = std::fs::read_dir(crate::services::java_download::runtime_dir()) {
+        for e in entries.flatten() {
+            if let Some(exe) = crate::services::java_download::find_java_exe(&e.path()) {
+                candidates.push(exe);
+            }
+        }
+    }
+
+    // 5) 去重
     candidates.sort();
     candidates.dedup();
 

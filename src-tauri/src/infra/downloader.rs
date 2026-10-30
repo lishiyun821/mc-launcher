@@ -1,5 +1,6 @@
 use std::path::Path;
-use std::time::Duration;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::{Duration, Instant};
 
 use sha1::{Digest, Sha1};
 
@@ -48,6 +49,8 @@ pub enum Outcome {
 /// - 这个面向大文件（jar / assets），流式落盘 + 边下边校验
 pub struct FileDownloader {
     client: reqwest::Client,
+    /// 全局限速 KB/s（0 = 不限），多个并发任务共享这一份预算
+    limit_kbps: std::sync::Arc<AtomicU32>,
 }
 
 impl Default for FileDownloader {
@@ -65,7 +68,19 @@ impl FileDownloader {
             .pool_max_idle_per_host(32)
             .build()
             .expect("failed to build download client");
-        Self { client }
+        Self {
+            client,
+            limit_kbps: std::sync::Arc::new(AtomicU32::new(0)),
+        }
+    }
+
+    /// 设置全局限速（KB/s，0 = 不限）
+    pub fn set_limit_kbps(&self, kbps: u32) {
+        self.limit_kbps.store(kbps, Ordering::Relaxed);
+    }
+
+    pub fn limit_kbps(&self) -> u32 {
+        self.limit_kbps.load(Ordering::Relaxed)
     }
 
     /// 磁盘上已有文件是否可用（有 sha1 就必须匹配）
@@ -160,10 +175,25 @@ impl FileDownloader {
         let mut file = tokio::fs::File::create(tmp).await?;
         let mut done: u64 = 0;
 
+        // 限速：按「已下载量 / 目标速率」算出应该用的时间，超前就 sleep
+        let limit = self.limit_kbps.load(Ordering::Relaxed);
+        let started = Instant::now();
+
         while let Some(chunk) = resp.chunk().await? {
             file.write_all(&chunk).await?;
             done += chunk.len() as u64;
             on_progress(done, total);
+
+            if limit > 0 {
+                let expect_ms = done as f64 / (limit as f64 * 1024.0) * 1000.0;
+                let real_ms = started.elapsed().as_millis() as f64;
+                if expect_ms > real_ms {
+                    let sleep_ms = (expect_ms - real_ms).min(500.0) as u64;
+                    if sleep_ms > 0 {
+                        tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
+                    }
+                }
+            }
         }
 
         file.flush().await?;

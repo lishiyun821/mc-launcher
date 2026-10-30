@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { onTaskUpdated } from "@/services/events";
 import { getConfig, listTasks } from "@/services/ipc";
+import { applyTheme } from "@/services/theme";
 import { useI18n } from "@/i18n";
 import type { TaskInfo } from "@/types";
 import HomeView from "@/views/HomeView.vue";
@@ -34,9 +35,10 @@ const activeTask = computed(
 const hasTasks = computed(() => tasks.value.length > 0);
 
 onMounted(async () => {
-  // 启动时应用已保存的语言
+  // 启动时应用已保存的语言和主题
   const cfg = await getConfig().catch(() => null);
   if (cfg?.language) setLang(cfg.language as "zh-CN" | "en");
+  applyTheme(cfg?.theme ?? "system");
 
   tasks.value = await listTasks().catch(() => []);
   unlisten = await onTaskUpdated((task) => {
@@ -91,7 +93,7 @@ onUnmounted(() => unlisten?.());
     </aside>
 
     <main class="main">
-      <HomeView v-if="page === 'home'" @goto="page = $event" />
+      <HomeView v-if="page === 'home'" @goto="page = $event as Page" />
       <VersionsView v-else-if="page === 'versions'" />
       <InstancesView v-else-if="page === 'instances'" />
       <AuthView v-else-if="page === 'auth'" />

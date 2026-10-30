@@ -160,7 +160,6 @@ function launchLine(r: LaunchReport) {
 
     <div v-if="error" class="err mono">{{ error }}</div>
     <div v-if="launchError" class="err mono">{{ launchError }}</div>
-
     <div class="list">
       <div v-if="loading && !manifest" class="empty">{{ t("versions.loading") }}</div>
       <div v-else-if="!shown.length" class="empty">{{ t("versions.empty") }}</div>

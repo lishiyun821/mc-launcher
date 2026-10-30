@@ -54,6 +54,12 @@ export interface AppConfig {
   language: Lang;
   /** 离线账户名字 */
   playerName: string;
+  /** 首页选中的实例 */
+  activeInstance: string | null;
+  /** system / light / dark */
+  theme: string;
+  /** 下载限速 KB/s，0 = 不限 */
+  downloadLimitKbps: number;
 }
 
 /** 实例级设置（存在 versions/<id>/instance.json） */
@@ -88,6 +94,25 @@ export interface InstanceInfo {
   hasJar: boolean;
   libraryCount: number;
   chain: string[];
+}
+
+/** 游戏日志 */
+export interface LogView {
+  path: string;
+  exists: boolean;
+  size: number;
+  lines: string[];
+  truncated: boolean;
+}
+
+/** 文件校验结果 */
+export interface VerifyReport {
+  total: number;
+  missing: string[];
+  ok: boolean;
+  hasJar: boolean;
+  nativeFiles: number;
+  checkedMs: number;
 }
 
 /** 微软登录的设备码 */
