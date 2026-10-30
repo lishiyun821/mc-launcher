@@ -33,6 +33,14 @@ pub fn run() {
             commands::install::install_version,
             // launch
             commands::launch::launch_version,
+            // instance
+            commands::instance::list_instances,
+            commands::instance::get_instance,
+            commands::instance::update_instance,
+            commands::instance::delete_instance,
+            commands::instance::duplicate_instance,
+            commands::instance::open_instance_folder,
+            commands::instance::open_game_folder,
             // task
             commands::task::list_tasks,
             commands::task::cancel_task,

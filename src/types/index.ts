@@ -56,6 +56,40 @@ export interface AppConfig {
   playerName: string;
 }
 
+/** 实例级设置（存在 versions/<id>/instance.json） */
+export interface InstanceConfig {
+  name: string;
+  memoryMb: number | null;
+  javaPath: string | null;
+  extraJvm: string[];
+  width: number | null;
+  height: number | null;
+  gameDir: string | null;
+  lastPlayed: number | null;
+}
+
+/** 实例列表项 */
+export interface InstanceInfo {
+  id: string;
+  name: string;
+  version: string;
+  kind: string | null;
+  mainClass: string;
+  memoryMb: number | null;
+  javaPath: string | null;
+  javaMajor: number | null;
+  extraJvm: string[];
+  width: number | null;
+  height: number | null;
+  lastPlayed: number | null;
+  createdAt: number;
+  sizeBytes: number;
+  gameDir: string;
+  hasJar: boolean;
+  libraryCount: number;
+  chain: string[];
+}
+
 /** 启动结果 */
 export interface LaunchReport {
   pid: number;

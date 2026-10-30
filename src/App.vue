@@ -7,10 +7,11 @@ import { useI18n } from "@/i18n";
 import type { TaskInfo } from "@/types";
 import HomeView from "@/views/HomeView.vue";
 import VersionsView from "@/views/VersionsView.vue";
+import InstancesView from "@/views/InstancesView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 import TaskBar from "@/components/TaskBar.vue";
 
-type Page = "home" | "versions" | "settings";
+type Page = "home" | "versions" | "instances" | "settings";
 
 const { t, setLang } = useI18n();
 
@@ -21,6 +22,7 @@ let unlisten: UnlistenFn | null = null;
 const nav = computed(() => [
   { key: "home" as Page, label: t("nav.home"), hint: t("nav.homeHint") },
   { key: "versions" as Page, label: t("nav.versions"), hint: t("nav.versionsHint") },
+  { key: "instances" as Page, label: t("nav.instances"), hint: t("nav.instancesHint") },
   { key: "settings" as Page, label: t("nav.settings"), hint: t("nav.settingsHint") },
 ]);
 
@@ -89,6 +91,7 @@ onUnmounted(() => unlisten?.());
     <main class="main">
       <HomeView v-if="page === 'home'" @goto="page = $event" />
       <VersionsView v-else-if="page === 'versions'" />
+      <InstancesView v-else-if="page === 'instances'" />
       <SettingsView v-else />
     </main>
 

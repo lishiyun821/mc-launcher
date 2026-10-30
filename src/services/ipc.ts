@@ -45,6 +45,30 @@ export const launchVersion = (id: string, accountName: string, memoryMb?: number
     memoryMb: memoryMb ?? null,
   });
 
+/* ───────── 实例 ───────── */
+
+export const listInstances = () =>
+  call<import("@/types").InstanceInfo[]>("list_instances");
+
+export const getInstance = (id: string) =>
+  call<import("@/types").InstanceConfig>("get_instance", { id });
+
+export const updateInstance = (
+  id: string,
+  config: import("@/types").InstanceConfig
+) => call<void>("update_instance", { id, config });
+
+export const deleteInstance = (id: string) =>
+  call<number>("delete_instance", { id });
+
+export const duplicateInstance = (from: string, to: string) =>
+  call<void>("duplicate_instance", { from, to });
+
+export const openInstanceFolder = (id: string) =>
+  call<string>("open_instance_folder", { id });
+
+export const openGameFolder = () => call<string>("open_game_folder");
+
 /* ───────── 任务 ───────── */
 
 export const listTasks = () => call<import("@/types").TaskInfo[]>("list_tasks");

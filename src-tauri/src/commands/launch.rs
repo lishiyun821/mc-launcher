@@ -1,10 +1,11 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use tauri::State;
 
 use crate::core::models::VersionJson;
 use crate::services::install::version_json;
+use crate::services::instance;
 use crate::services::launch::{account, args, classpath, process, LaunchOptions};
 use crate::services::{java as java_service, version};
 use crate::state::AppState;
@@ -73,7 +74,19 @@ async fn do_launch(
         ));
     }
 
-    /* ② 选 Java：优先选满足要求且版本最低的那个（避免用超新版本跑老游戏） */
+    /* ② 读实例设置：实例里的配置优先于全局默认 */
+    let inst = instance::load(&mc_dir, id);
+    let memory_mb = inst.memory_mb.unwrap_or(memory_mb);
+    let width = inst.width.unwrap_or(854);
+    let height = inst.height.unwrap_or(480);
+    let work_dir = inst
+        .game_dir
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| mc_dir.clone());
+
+    /* ③ 选 Java：实例指定优先 → 否则挑满足要求的最低版本 */
     let required = rv.java_major.unwrap_or(8);
     let javas = java_service::scan().await;
     if javas.is_empty() {
@@ -82,22 +95,30 @@ async fn do_launch(
         ));
     }
 
-    let java = javas
-        .iter()
-        .filter(|j| j.major >= required)
-        .min_by_key(|j| j.major)
-        .or_else(|| javas.iter().max_by_key(|j| j.major))
+    let java = inst
+        .java_path
+        .as_ref()
+        .filter(|p| Path::new(p).is_file())
+        .and_then(|p| javas.iter().find(|j| &j.path == p).cloned())
+        .or_else(|| {
+            javas
+                .iter()
+                .filter(|j| j.major >= required)
+                .min_by_key(|j| j.major)
+                .cloned()
+        })
+        .or_else(|| javas.iter().max_by_key(|j| j.major).cloned())
         .ok_or_else(|| anyhow::anyhow!("没有可用的 Java"))?;
 
-    /* ③ classpath */
+    /* ④ classpath */
     let cp_paths = classpath::build(&mc_dir, &rv);
     let cp_count = cp_paths.len();
     let cp = classpath::join(&cp_paths);
 
-    /* ④ natives 目录 */
+    /* ⑤ natives 目录 */
     let natives_dir = mc_dir.join("versions").join(id).join("natives");
 
-    /* ⑤ 组装参数 */
+    /* ⑥ 组装参数 */
     let acct = account::Account::offline(name);
     let opt = LaunchOptions {
         java: PathBuf::from(&java.path),
@@ -106,26 +127,29 @@ async fn do_launch(
         classpath: cp,
         account: acct.clone(),
         memory_mb,
-        width: 854,
-        height: 480,
-        extra_jvm: Vec::new(),
+        width,
+        height,
+        extra_jvm: inst.extra_jvm.clone(),
     };
 
     let preview = args::preview_command(&rv, &opt);
     let jvm_args = args::build_jvm_args(&rv, &opt);
     let game_args = args::build_game_args(&rv, &opt);
 
-    /* ⑥ 启动 */
+    /* ⑦ 启动 */
     let log_file = mc_dir.join("logs").join(format!("game-{id}.log"));
     let gp = process::spawn(
         &opt.java,
         &jvm_args,
         &rv.main_class,
         &game_args,
-        &mc_dir,
+        &work_dir,
         Some(log_file),
     )
     .await?;
+
+    // 记一下这次启动时间
+    let _ = instance::touch(&mc_dir, id);
 
     let pid = gp.pid;
     tracing::info!(
