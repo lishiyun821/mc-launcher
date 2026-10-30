@@ -1,7 +1,6 @@
 # v0.1.0 — 第一个能用的版本
 
-从零写起的开源 Minecraft 启动器：**Rust + Vue 3 + Tauri 2**，安装包约 10 MB。
-代码全部新写，没有复用任何 PCL 的代码。
+An open-source Minecraft launcher written from scratch: **Rust + Vue 3 + Tauri 2**, ~2.3 MB installer.
 
 ## 这个版本能做什么
 

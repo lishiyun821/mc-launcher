@@ -1,11 +1,12 @@
 # MC Launcher
 
-一个从零写起的开源 Minecraft 启动器。Rust 后端 + Vue 3 前端 + Tauri 2 外壳，跨平台，产物约 10 MB。
+An open-source Minecraft launcher written from scratch — Rust backend, Vue 3 frontend, Tauri 2 shell.
+Cross-platform, ~10 MB.
 
-目标是对标 [PCL](https://github.com/Meloong-Git/PCL) 的功能完整度，但**代码全部新写**、架构现代、逻辑与界面分离。
-不复用任何 PCL 代码（其许可是《PCL 分发有限许可》，非开源协议），只参考公开的功能思路。
+Install vanilla Minecraft, launch the game, manage instances, and sign in with a Microsoft account.
 
-> 状态：**可用**。原版安装、启动、实例管理、微软正版登录全部跑通，日常能当启动器用。
+> Status: **usable** — vanilla install, launch, instance management and Microsoft login all work.
+> Good enough for daily use.
 
 ![启动台](docs/screenshots/launchpad.png)
 

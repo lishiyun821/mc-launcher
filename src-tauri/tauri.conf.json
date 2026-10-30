@@ -48,6 +48,8 @@
           "English"
         ]
       }
-    }
+    },
+    "shortDescription": "An open-source Minecraft launcher",
+    "longDescription": "An open-source Minecraft launcher built with Rust, Vue 3 and Tauri 2. Install vanilla Minecraft, launch the game, manage isolated instances, and sign in with a Microsoft account."
   }
 }
