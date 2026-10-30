@@ -41,8 +41,40 @@ pub async fn launch_version(
         .map_err(|e| e.to_string())
 }
 
+/// 令牌过期时自动续期：refresh_token → 新 MS 令牌 → 新 MC 令牌 → 写回磁盘
+///
+/// refresh_token 本身有滚动有效期（微软约 90 天不用会失效），
+/// 那种情况这里会失败，提示用户重新登录。
+async fn auto_refresh(
+    state: &AppState,
+    acc: &crate::services::auth::store::StoredAccount,
+) -> Result<crate::services::auth::store::StoredAccount, anyhow::Error> {
+    use crate::services::auth::{microsoft, store};
+
+    if acc.refresh_token.is_empty() {
+        return Err(anyhow::anyhow!("本地没有 refresh_token"));
+    }
+
+    let http = state.downloader.http();
+    let ms = microsoft::refresh_ms_token(http, &acc.refresh_token).await?;
+    let outcome = microsoft::login_with_ms_token(http, ms).await?;
+
+    store::update_token(
+        &acc.id,
+        outcome.minecraft_token.access_token.clone(),
+        outcome.minecraft_token.expires_in,
+        Some(outcome.ms.refresh_token.clone()),
+    )?;
+
+    Ok(store::load()
+        .accounts
+        .into_iter()
+        .find(|a| a.id == acc.id)
+        .unwrap_or_else(|| acc.clone()))
+}
+
 async fn do_launch(
-    _state: &AppState,
+    state: &AppState,
     id: &str,
     name: &str,
     memory_mb: u32,
@@ -120,12 +152,23 @@ async fn do_launch(
 
     /* ⑥ 组装参数：优先用当前登录的正版账户，没有就离线 */
     let acct = match crate::services::auth::store::active() {
-        Some(a) if a.is_msa() => {
+        Some(mut a) if a.is_msa() => {
+            // 令牌只有 24 小时有效（expires_in = 86400），过期就自动续，
+            // 不让用户每天手动点「续期」。
             if a.is_expired() {
-                return Err(anyhow::anyhow!(
-                    "账户 {} 的登录已过期，去「账户」页点一下续期",
-                    a.name
-                ));
+                tracing::info!("账户 {} 令牌已过期，自动续期中…", a.name);
+                match auto_refresh(&state, &a).await {
+                    Ok(fresh) => {
+                        tracing::info!("自动续期成功: {}", fresh.name);
+                        a = fresh;
+                    }
+                    Err(e) => {
+                        return Err(anyhow::anyhow!(
+                            "账户 {} 的登录已过期，自动续期失败（{e}）—— 去「账户」页点「续期」或重新登录",
+                            a.name
+                        ));
+                    }
+                }
             }
             tracing::info!("使用正版账户启动: {}", a.name);
             account::Account::from_stored(&a)
