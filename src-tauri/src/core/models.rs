@@ -85,6 +85,12 @@ pub struct VersionJson {
     pub main_class: Option<String>,
     #[serde(rename = "inheritsFrom")]
     pub inherits_from: Option<String>,
+    /// 合并时记下的完整继承链（父 → 子）。
+    ///
+    /// 合并后 inheritsFrom 会被抹掉，但启动、完整性校验还需要知道父版本是谁
+    /// （例如 Fabric 版本的客户端 jar 其实就是原版那一份）。
+    #[serde(rename = "mergedChain", default, skip_serializing_if = "Option::is_none")]
+    pub merged_chain: Option<Vec<String>>,
     #[serde(rename = "minecraftArguments")]
     pub minecraft_arguments: Option<String>,
     pub arguments: Option<Arguments>,
@@ -117,6 +123,16 @@ pub struct Library {
     pub rules: Vec<Rule>,
     pub natives: Option<std::collections::HashMap<String, String>>,
     pub extract: Option<Extract>,
+
+    // ── Maven 形式（Fabric / Quilt 的库这么给）──
+    // 没有 downloads.artifact，只给仓库根地址 + 校验值，路径从坐标推导。
+    /// Maven 仓库根，如 "https://maven.fabricmc.net/"
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub sha1: Option<String>,
+    #[serde(default)]
+    pub size: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

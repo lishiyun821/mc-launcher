@@ -33,6 +33,8 @@ pub fn run() {
             commands::version::list_local_versions,
             // install
             commands::install::install_version,
+            commands::install::list_fabric_loaders,
+            commands::install::install_fabric,
             // launch
             commands::launch::launch_version,
             // instance

@@ -27,17 +27,42 @@ pub fn build(mc_dir: &Path, rv: &ResolvedVersion) -> Vec<PathBuf> {
         if is_native_entry(lib) {
             continue;
         }
-        let Some(artifact) = lib.downloads.as_ref().and_then(|d| d.artifact.as_ref()) else {
-            continue;
+        // 两种给法，跟 install 那边保持一致：
+        // ① 标准 Mojang 形式 —— downloads.artifact 里有 path
+        // ② Maven 形式（Fabric / Quilt）—— 只有 url + sha1，路径从坐标推导
+        //
+        // 早先这里只认 ①，导致 Fabric 的 fabric-loader / mixin / asm 全被跳过，
+        // classpath 里没有 KnotClient 所在的 jar，启动直接 ClassNotFound 秒退。
+        let rel = if let Some(a) = lib.downloads.as_ref().and_then(|d| d.artifact.as_ref()) {
+            a.path.clone().or_else(|| maven_rel(&lib.name))
+        } else if lib.url.as_deref().filter(|u| !u.is_empty()).is_some() {
+            maven_rel(&lib.name)
+        } else {
+            None
         };
-        let Some(rel) = artifact.path.clone().or_else(|| maven_rel(&lib.name)) else {
+
+        let Some(rel) = rel else {
             continue;
         };
         out.push(libs_dir.join(rel));
     }
 
     // 客户端 jar 放最后
-    out.push(mc_dir.join("versions").join(&rv.id).join(format!("{}.jar", rv.id)));
+    // 客户端 jar：优先用自己目录下的；继承版本（Fabric 等）没有就回落到父版本那份
+    let own = mc_dir.join("versions").join(&rv.id).join(format!("{}.jar", rv.id));
+    if own.is_file() {
+        out.push(own);
+    } else if let Some(parent) = rv.chain.iter().rev().find(|p| p.as_str() != rv.id.as_str()) {
+        let pj = mc_dir.join("versions").join(parent).join(format!("{parent}.jar"));
+        if pj.is_file() {
+            tracing::info!("版本 {} 没有自己的客户端 jar，回落到父版本 {}", rv.id, parent);
+            out.push(pj);
+        } else {
+            out.push(own);
+        }
+    } else {
+        out.push(own);
+    }
 
     out
 }

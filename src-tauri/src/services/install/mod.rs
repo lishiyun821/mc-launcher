@@ -1,3 +1,4 @@
+pub mod fabric;
 pub mod natives;
 pub mod plan;
 pub mod rules;

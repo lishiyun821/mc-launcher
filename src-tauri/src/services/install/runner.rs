@@ -161,6 +161,11 @@ fn collect_files(plan: &DownloadPlan, mc_dir: &std::path::Path) -> Vec<PlannedFi
     files.extend(plan.libraries.iter().cloned());
     files.extend(plan.natives.iter().cloned());
 
+    // 客户端 jar —— 以前漏了这一项，导致新装的版本没有 .jar，启动时直接缺主体
+    if let Some(c) = &plan.client {
+        files.push(c.clone());
+    }
+
     if let Some(idx) = &plan.assets_index {
         files.push(idx.clone());
     }

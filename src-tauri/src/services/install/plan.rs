@@ -86,24 +86,37 @@ pub async fn build_plan(
             .map(|cls| cls.starts_with("natives-"))
             .unwrap_or(false);
 
-        let Some(artifact) = lib.downloads.as_ref().and_then(|d| d.artifact.as_ref()) else {
-            // 老版本有些库没有 artifact，靠 classifiers 单独给
-            continue;
-        };
-
-        let Some(rel) = artifact.path.clone().or_else(|| maven_path(&lib.name)) else {
-            tracing::warn!("库 {} 既没有 path 也无法从坐标推导路径，跳过", lib.name);
-            continue;
-        };
+        // 两种给法：
+        // ① 标准 Mojang 形式 —— downloads.artifact 里带完整 url / path / sha1
+        // ② Maven 形式（Fabric、Quilt 这些加载器用）—— 只有仓库根 url + sha1 + size，
+        //    具体路径得从 group:artifact:version 坐标自己推
+        let (rel, origin_url, sha1, size) =
+            if let Some(a) = lib.downloads.as_ref().and_then(|d| d.artifact.as_ref()) {
+                let Some(rel) = a.path.clone().or_else(|| maven_path(&lib.name)) else {
+                    tracing::warn!("库 {} 既没有 path 也无法从坐标推导路径，跳过", lib.name);
+                    continue;
+                };
+                (rel, a.url.clone(), a.sha1.clone(), a.size)
+            } else if let Some(base) = lib.url.as_ref().filter(|u| !u.is_empty()) {
+                let Some(rel) = maven_path(&lib.name) else {
+                    tracing::warn!("Maven 库 {} 的坐标解析不出路径，跳过", lib.name);
+                    continue;
+                };
+                let origin = format!("{}{}", base.trim_end_matches('/'), join_path("/", &rel));
+                (rel, origin, lib.sha1.clone(), lib.size)
+            } else {
+                // 老版本有些库没有 artifact，靠 classifiers 单独给
+                continue;
+            };
 
         let file = PlannedFile {
             // 国内环境镜像优先，官方兜底
             url: format!("{MIRROR_BASE}/maven/{rel}"),
-            mirror_url: Some(artifact.url.clone()),
+            mirror_url: Some(origin_url),
             dest: libs_dir.join(&rel),
             relative: rel.clone(),
-            sha1: artifact.sha1.clone(),
-            size: artifact.size,
+            sha1,
+            size,
             name: lib.name.clone(),
         };
 
@@ -141,7 +154,23 @@ pub async fn build_plan(
     }
 
     /* ── ② 客户端 jar ── */
-    let client_rel = format!("versions/{}/{}.jar", rv.id, rv.id);
+    //
+    // 继承版本（Fabric / Quilt 这类）自己没有客户端 jar，用的是被继承版本的。
+    // 所以先看父版本那份在不在，在就直接复用，省掉再下一份 30 MB。
+    let inherited = rv
+        .chain
+        .iter()
+        .find(|p| p.as_str() != rv.id.as_str())
+        .and_then(|parent| {
+            let p = mc_dir.join("versions").join(parent).join(format!("{parent}.jar"));
+            p.is_file().then(|| (*parent).clone())
+        });
+
+    let client_rel = match &inherited {
+        Some(parent) => format!("versions/{parent}/{parent}.jar"),
+        None => format!("versions/{}/{}.jar", rv.id, rv.id),
+    };
+
     plan.client = Some(PlannedFile {
         url: rv.client.url.clone(),
         mirror_url: None,
@@ -255,6 +284,11 @@ fn native_classifier_entries(libs: &[Library]) -> Vec<(Library, String)> {
 
 /// 从 Maven 坐标推导相对路径：group:artifact:version[:classifier]
 /// → group/artifact/version/artifact-version[-classifier].jar
+/// 把相对路径拼到 URL 前缀后面
+fn join_path(_sep: &str, rel: &str) -> String {
+    format!("/{rel}")
+}
+
 fn maven_path(coords: &str) -> Option<String> {
     let base = coords.split('@').next().unwrap_or(coords);
     let parts: Vec<&str> = base.split(':').collect();

@@ -87,15 +87,32 @@ pub async fn resolve(
     loop {
         task.check_cancel()?;
 
-        let url = manifest
-            .versions
-            .iter()
-            .find(|v| v.id == cur)
-            .map(|v| v.url.clone())
-            .ok_or_else(|| anyhow::anyhow!("版本清单里找不到 {cur}"))?;
-
-        task.progress(0.05, format!("获取 {cur} 的版本定义")).await;
-        let bytes = dl.get_bytes(&url).await?;
+        // 两种来源：
+        // ① 官方清单里有的（原版、快照）—— 走网络拉
+        // ② 清单里没有的（Fabric / Quilt / Forge 这类第三方版本）—— 安装器已经把
+        //    原始定义写进 versions/<id>/<id>.raw.json，直接读本地
+        let bytes = match manifest.versions.iter().find(|v| v.id == cur) {
+            Some(v) => {
+                task.progress(0.05, format!("获取 {cur} 的版本定义")).await;
+                dl.get_bytes(&v.url).await?
+            }
+            None => {
+                let dir = versions_dir.join(&cur);
+                let raw = dir.join(format!("{cur}.raw.json"));
+                let merged_file = dir.join(format!("{cur}.json"));
+                if raw.is_file() {
+                    task.progress(0.05, format!("读取本地版本 {cur}")).await;
+                    std::fs::read(&raw)?
+                } else if merged_file.is_file() {
+                    task.progress(0.05, format!("读取本地版本 {cur}")).await;
+                    std::fs::read(&merged_file)?
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "版本清单和本地都找不到 {cur}（第三方加载器请先用对应的安装命令）"
+                    ));
+                }
+            }
+        };
 
         let dir = versions_dir.join(&cur);
         std::fs::create_dir_all(&dir)?;
@@ -206,6 +223,7 @@ fn save_resolved(versions_dir: &Path, rv: &ResolvedVersion) -> Result<PathBuf, a
         kind: rv.kind.clone(),
         main_class: Some(rv.main_class.clone()),
         inherits_from: None, // 合并后不再继承
+        merged_chain: Some(rv.chain.clone()),
         minecraft_arguments: rv.minecraft_arguments.clone(),
         arguments: Some(rv.arguments.clone()),
         libraries: rv.libraries.clone(),
@@ -259,7 +277,10 @@ pub fn from_merged(json: &VersionJson) -> Result<ResolvedVersion, anyhow::Error>
         }),
         minecraft_arguments: json.minecraft_arguments.clone(),
         release_time: json.release_time.clone(),
-        chain: vec![json.id.clone()],
+        chain: json
+            .merged_chain
+            .clone()
+            .unwrap_or_else(|| vec![json.id.clone()]),
     })
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { fetchVersionManifest, listLocalVersions, installVersion, launchVersion, getConfig } from "@/services/ipc";
+import { fetchVersionManifest, listLocalVersions, installVersion, installFabric, launchVersion, getConfig } from "@/services/ipc";
 import { useI18n } from "@/i18n";
 import type { InstallReport, LaunchReport, VersionManifest, VersionSummary } from "@/types";
 
@@ -70,6 +70,26 @@ async function install(v: VersionSummary) {
     console.error("[install]", e);
   } finally {
     installingId.value = null;
+  }
+}
+
+/* ───── Fabric 加载器 ───── */
+
+const fabricBusy = ref<string | null>(null);
+const fabricReports = ref<Record<string, InstallReport>>({});
+
+/** 给这个游戏版本装一份 Fabric，装完会多出一个 fabric-loader-x-y 的版本 */
+async function installFabricFor(v: VersionSummary) {
+  if (fabricBusy.value !== null || installingId.value !== null) return;
+  fabricBusy.value = v.id;
+  try {
+    const r = await installFabric(v.id);
+    fabricReports.value = { ...fabricReports.value, [v.id]: r };
+    local.value = await listLocalVersions().catch(() => []);
+  } catch (e) {
+    console.error("[fabric]", e);
+  } finally {
+    fabricBusy.value = null;
   }
 }
 
@@ -183,7 +203,15 @@ function launchLine(r: LaunchReport) {
         >
           {{ launchingId === v.id ? t("versions.launching") : t("versions.play") }}
         </button>
-        <button class="mini" :disabled="installingId !== null" @click="install(v)">
+        <button
+          v-if="v.type === 'release'"
+          class="mini fabric"
+          :disabled="installingId !== null || fabricBusy !== null"
+          @click="installFabricFor(v)"
+        >
+          {{ fabricBusy === v.id ? "Fabric…" : "Fabric" }}
+        </button>
+        <button class="mini" :disabled="installingId !== null || fabricBusy !== null" @click="install(v)">
           {{
             installingId === v.id
               ? t("versions.installing")
@@ -193,6 +221,9 @@ function launchLine(r: LaunchReport) {
           }}
         </button>
         <div v-if="reports[v.id]" class="report mono">{{ reportLine(reports[v.id]) }}</div>
+        <div v-if="fabricReports[v.id]" class="report ok mono">
+          ✓ Fabric · {{ reportLine(fabricReports[v.id]) }}
+        </div>
         <div v-if="launchReports[v.id]" class="report ok mono">
           {{ launchLine(launchReports[v.id]) }}
         </div>
@@ -374,6 +405,17 @@ h1 {
 .row {
   flex-wrap: wrap;
   row-gap: 4px;
+}
+
+.mini.fabric {
+  border-color: color-mix(in srgb, var(--ink) 28%, transparent);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.mini.fabric:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--bg);
 }
 
 .mini {

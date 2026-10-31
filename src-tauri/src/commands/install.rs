@@ -2,7 +2,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::infra::task::TaskHandle;
-use crate::services::install::{natives, plan, runner, version_json};
+use crate::services::install::{fabric, natives, plan, runner, version_json};
 use crate::services::version;
 use crate::state::AppState;
 
@@ -164,4 +164,77 @@ async fn do_install(
     }
 
     Ok(report)
+}
+
+
+/* ─────────────── Fabric 加载器 ─────────────── */
+
+/// 列出某个游戏版本能装哪些 Fabric loader
+#[tauri::command]
+pub async fn list_fabric_loaders(
+    state: State<'_, AppState>,
+    game: String,
+) -> Result<Vec<fabric::FabricLoader>, String> {
+    fabric::list_loaders(&state.downloader, &game)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 安装 Fabric：先落版本定义，再走通用安装链路
+///
+/// `loader` 传 None 表示用最新的稳定版。
+#[tauri::command]
+pub async fn install_fabric(
+    state: State<'_, AppState>,
+    game: String,
+    loader: Option<String>,
+) -> Result<InstallReport, String> {
+    let mc_dir = version::default_mc_dir();
+    let versions_dir = mc_dir.join("versions");
+    std::fs::create_dir_all(&versions_dir).map_err(|e| e.to_string())?;
+
+    let task = state.tasks.create(format!("安装 Fabric · {game}"));
+    let started = std::time::Instant::now();
+
+    // ① 拿 profile 写进版本目录（这一步会挑 loader）
+    let id = match fabric::prepare(&state.downloader, &versions_dir, &game, loader.as_deref()).await {
+        Ok(id) => id,
+        Err(e) => {
+            let msg = e.to_string();
+            task.fail(msg.clone()).await;
+            return Err(msg);
+        }
+    };
+
+    // ② 剩下的跟装原版完全一样
+    match do_install(&state, &task, &id, started).await {
+        Ok(report) => {
+            let summary = if report.failed.is_empty() {
+                format!(
+                    "{} 安装完成 · {} 个文件 · {:.1} MB · {:.0} 秒",
+                    report.id,
+                    report.downloaded,
+                    report.total_bytes as f64 / 1024.0 / 1024.0,
+                    report.elapsed_ms as f64 / 1000.0
+                )
+            } else {
+                format!(
+                    "{} 基本完成 · {} 个失败",
+                    report.id,
+                    report.failed.len()
+                )
+            };
+            task.finish(summary).await;
+            Ok(report)
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("任务已取消") {
+                task.cancelled().await;
+            } else {
+                task.fail(msg.clone()).await;
+            }
+            Err(msg)
+        }
+    }
 }

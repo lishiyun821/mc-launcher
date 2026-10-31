@@ -162,7 +162,19 @@ pub fn list(mc_dir: &Path) -> Vec<InstanceInfo> {
                 .game_dir
                 .clone()
                 .unwrap_or_else(|| mc_dir.display().to_string()),
-            has_jar: e.path().join(format!("{id}.jar")).is_file(),
+            // 继承版本（Fabric 等）自己没有 jar，只要有父版本那份就算齐
+            has_jar: e.path().join(format!("{id}.jar")).is_file()
+                || rv.chain
+                    .iter()
+                    .find(|p| p.as_str() != id.as_str())
+                    .map(|p| {
+                        mc_dir
+                            .join("versions")
+                            .join(p)
+                            .join(format!("{p}.jar"))
+                            .is_file()
+                    })
+                    .unwrap_or(false),
             library_count: rv.platform_libraries().len(),
             chain: rv.chain.clone(),
             kind: rv.kind.clone(),

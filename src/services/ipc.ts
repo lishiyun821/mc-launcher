@@ -142,3 +142,18 @@ export interface JavaInfo {
   vendor: string;
   is64Bit: boolean;
 }
+
+/* ───────── Fabric 加载器 ───────── */
+
+export interface FabricLoader {
+  version: string;
+  stable: boolean;
+}
+
+/** 某个游戏版本能装的 Fabric loader 列表 */
+export const listFabricLoaders = (game: string) =>
+  call<FabricLoader[]>("list_fabric_loaders", { game });
+
+/** 装 Fabric，loader 不传就用最新稳定版 */
+export const installFabric = (game: string, loader?: string | null) =>
+  call<import("@/types").InstallReport>("install_fabric", { game, loader: loader ?? null });

@@ -54,12 +54,48 @@ pub async fn scan() -> Vec<JavaInfo> {
         }
     }
 
-    // 5) 去重
+    // 5) 把 Windows 的 javapath 转发器换成真实路径
+    //
+    // `C:\Program Files\Common Files\Oracle\Java\javapath\java.exe` 不是真的 JVM，
+    // 而是一个转发 shim：它把 argv 重新拼成命令字符串再解析一遍。
+    // 带空格的参数会被拆开（Fabric 就会传 `-DFabricMcEmu= net.minecraft.client.main.Main `），
+    // 拆开后主类位置错位，JVM 立刻以退出码 1 结束，而且不输出任何东西。
+    // 所以这里尽量解析成真实路径；解析不出来就排到最后，让真实 JDK 优先。
+    let mut shims: Vec<PathBuf> = Vec::new();
+    candidates = candidates
+        .into_iter()
+        .filter_map(|p| {
+            let is_shim = p
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .contains("oracle\\java\\javapath") ||
+                p.to_string_lossy().to_ascii_lowercase().contains("javapath_target");
+
+            if !is_shim {
+                return Some(p);
+            }
+            // 试着顺着链接找真身
+            match std::fs::canonicalize(&p) {
+                Ok(real) if real.is_file() && !real.to_string_lossy().contains("javapath") => {
+                    tracing::debug!("javapath 转发器 {} 解析到 {}", p.display(), real.display());
+                    Some(real)
+                }
+                _ => {
+                    shims.push(p);
+                    None
+                }
+            }
+        })
+        .collect();
+
+    // 6) 去重（真实 JDK 在前，shim 兜底放最后）
     candidates.sort();
     candidates.dedup();
+    let mut all = candidates;
+    all.extend(shims);
 
     let mut out = Vec::new();
-    for c in candidates {
+    for c in all {
         if let Some(info) = probe(&c).await {
             out.push(info);
         }
