@@ -49,6 +49,7 @@ pub fn run() {
             commands::instance::verify_instance,
             // auth
             commands::auth::list_accounts,
+            commands::auth::add_offline_account,
             commands::auth::ms_login_start,
             commands::auth::ms_login_poll,
             commands::auth::remove_account,

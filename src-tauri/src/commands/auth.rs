@@ -55,6 +55,64 @@ pub async fn list_accounts() -> Result<AccountsView, String> {
     })
 }
 
+/// 添加一个离线账户（不起正版验证，单人游戏够用）
+#[tauri::command]
+pub async fn add_offline_account(name: String) -> Result<AccountInfo, String> {
+    let name = name.trim().to_string();
+
+    if name.len() < 3 || name.len() > 16 {
+        return Err("用户名需要 3 到 16 个字符".to_string());
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err("用户名只能包含字母、数字和下划线".to_string());
+    }
+
+    // 离线 UUID 由名字哈希得来，和原版行为一致
+    let raw = crate::services::launch::account::offline_uuid(&name);
+    if raw.len() != 32 {
+        return Err("生成 UUID 失败".to_string());
+    }
+    let uuid = format!(
+        "{}-{}-{}-{}-{}",
+        &raw[0..8],
+        &raw[8..12],
+        &raw[12..16],
+        &raw[16..20],
+        &raw[20..32]
+    );
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let stored = store::StoredAccount {
+        id: raw.clone(),
+        name,
+        uuid,
+        access_token: String::new(),
+        expires_at: 0,
+        refresh_token: String::new(),
+        xuid: None,
+        skin_url: None,
+        cape_url: None,
+        kind: "offline".to_string(),
+        added_at: now,
+    };
+
+    let file = store::upsert(stored).map_err(|e| e.to_string())?;
+    let acc = file
+        .accounts
+        .iter()
+        .find(|a| a.id == raw)
+        .ok_or_else(|| "保存后没找到账户".to_string())?;
+
+    Ok(to_info(acc, file.active.as_deref()))
+}
+
 /* ─────────────────────────── 登录 ─────────────────────────── */
 
 /// 第一步：申请登录码（前端拿 userCode 让用户去浏览器输）

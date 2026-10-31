@@ -4,6 +4,7 @@ import SkinAvatar from "@/components/SkinAvatar.vue";
 import {
   getConfig,
   listAccounts,
+  addOfflineAccount,
   msLoginPoll,
   msLoginStart,
   refreshAccount,
@@ -157,6 +158,28 @@ async function drop(id: string) {
   }
 }
 
+/** 添加离线账户 */
+const offlineName = ref("");
+const offlineBusy = ref(false);
+const offlineError = ref("");
+
+async function submitOffline() {
+  const n = offlineName.value.trim();
+  if (!n || offlineBusy.value) return;
+
+  offlineBusy.value = true;
+  offlineError.value = "";
+  try {
+    await addOfflineAccount(n);
+    offlineName.value = "";
+    await load();
+  } catch (e) {
+    offlineError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    offlineBusy.value = false;
+  }
+}
+
 function fmtExpire(sec: number) {
   if (!sec) return "—";
   const d = new Date(sec * 1000);
@@ -258,6 +281,33 @@ function renewTip(a: AccountInfo) {
       <p class="hint mono">
         {{ t("auth.offlineHint").replace("{name}", playerName) }}
       </p>
+    </section>
+
+    <!-- 添加离线账户 -->
+    <section class="card offline-add">
+      <div class="oa-head">
+        <span class="oa-title">{{ t("auth.addOfflineTitle") }}</span>
+        <span class="tag mono">OFFLINE</span>
+      </div>
+      <p class="oa-desc">{{ t("auth.addOfflineDesc") }}</p>
+      <div class="oa-form">
+        <input
+          v-model="offlineName"
+          class="oa-input mono"
+          :placeholder="t('auth.offlineNamePlaceholder')"
+          maxlength="16"
+          spellcheck="false"
+          @keyup.enter="submitOffline"
+        />
+        <button
+          class="oa-btn"
+          :disabled="offlineBusy || !offlineName.trim()"
+          @click="submitOffline"
+        >
+          {{ offlineBusy ? t("auth.adding") : t("auth.add") }}
+        </button>
+      </div>
+      <div v-if="offlineError" class="oa-err mono">{{ offlineError }}</div>
     </section>
 
     <!-- 账户列表 -->
@@ -429,6 +479,75 @@ h1 {
   gap: 14px;
   margin-bottom: 22px;
   flex-wrap: wrap;
+}
+
+/* 添加离线账户 */
+
+.offline-add {
+  padding: 18px 20px;
+  margin-bottom: 22px;
+}
+
+.oa-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 7px;
+}
+
+.oa-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.oa-desc {
+  margin: 0 0 13px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--ink-3);
+  max-width: 560px;
+}
+
+.oa-form {
+  display: flex;
+  gap: 8px;
+}
+
+.oa-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color var(--dur-1) var(--ease-apple);
+}
+
+.oa-input:focus { border-color: var(--ink-4); }
+.oa-input::placeholder { color: var(--ink-4); }
+
+.oa-btn {
+  flex: none;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: opacity var(--dur-1) var(--ease-apple);
+}
+
+.oa-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.oa-err {
+  margin-top: 9px;
+  font-size: 11.5px;
+  color: #c0503f;
 }
 
 .now-main {

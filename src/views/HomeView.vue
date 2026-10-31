@@ -6,7 +6,7 @@ import {
   launchVersion,
   listAccounts,
   listInstances,
-  openInstanceFolder,
+  setActiveAccount,
   setConfig,
 } from "@/services/ipc";
 import { useI18n } from "@/i18n";
@@ -18,6 +18,7 @@ const { t } = useI18n();
 
 const instances = ref<InstanceInfo[]>([]);
 const activeAccount = ref<AccountInfo | null>(null);
+const accounts = ref<AccountInfo[]>([]);
 const playerName = ref("MyisaCN");
 const activeId = ref<string | null>(null);
 const loading = ref(true);
@@ -43,6 +44,26 @@ const recent = computed(() =>
     .slice(0, 4),
 );
 
+/** 当前账户类型：msa / offline / none */
+const activeKind = computed(() => activeAccount.value?.kind ?? "none");
+
+/** 顶部「正版 / 离线」切换 */
+async function switchKind(kind: "msa" | "offline") {
+  const target = accounts.value.find((a) => a.kind === kind);
+  if (!target) {
+    // 这种账户还没有 —— 去账户页加
+    emit("goto", "auth");
+    return;
+  }
+  if (target.id === activeAccount.value?.id) return;
+  try {
+    await setActiveAccount(target.id);
+    await load();
+  } catch (e) {
+    report.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
 async function load() {
   loading.value = true;
   const [cfg, list, accs] = await Promise.all([
@@ -56,6 +77,7 @@ async function load() {
     activeId.value = cfg.activeInstance ?? null;
   }
   instances.value = list;
+  accounts.value = accs?.accounts ?? [];
   // 优先用后端给的 active 布尔字段；退一步再按 id 匹配。
   // 账户页和首页状态必须一致，任何一边拿不到都退回"未登录"只为兜底。
   if (accs && Array.isArray(accs.accounts)) {
@@ -120,83 +142,67 @@ function kindLabel(kind: string | null) {
 
 <template>
   <div class="wrap">
-    <header class="head">
-      <div>
-        <div class="eyebrow mono">OVERVIEW</div>
-        <h1>{{ t("home.readyTitle") }}</h1>
-      </div>
-      <button class="account-chip" @click="emit('goto', 'auth')">
-        <SkinAvatar
-          class="av"
-          :uuid="activeAccount?.uuid"
-          :name="activeAccount?.name ?? playerName"
-          :skin-url="activeAccount?.skinUrl"
-          :size="28"
-        />
-        <span class="chip-text">
-          <span class="chip-name">{{ activeAccount?.name ?? playerName }}</span>
-          <span class="chip-kind mono">
-            {{
-              activeAccount
-                ? activeAccount.kind === "msa"
-                  ? t("home.msaMode")
-                  : t("home.offlineMode")
-                : t("home.notLoggedIn")
-            }}
-          </span>
-        </span>
+    <!-- 顶部：正版 / 离线 -->
+    <div class="kind-switch">
+      <button class="kind" :class="{ on: activeKind === 'msa' }" @click="switchKind('msa')">
+        <span class="kind-dot"></span>
+        {{ t("home.msaMode") }}
       </button>
-    </header>
+      <button class="kind" :class="{ on: activeKind === 'offline' }" @click="switchKind('offline')">
+        <span class="kind-dot"></span>
+        {{ t("home.offlineMode") }}
+      </button>
+    </div>
 
-    <section v-if="!loading && !instances.length" class="empty">
+    <!-- 头像 + 玩家名 -->
+    <div class="hero">
+      <SkinAvatar
+        class="hero-avatar"
+        :uuid="activeAccount?.uuid"
+        :name="activeAccount?.name ?? playerName"
+        :skin-url="activeAccount?.skinUrl"
+        :size="96"
+      />
+      <div class="hero-name">{{ activeAccount?.name ?? playerName }}</div>
+      <div class="hero-sub mono">
+        <template v-if="current">
+          {{ current.name }}
+          <span class="dot-sep">·</span>
+          {{ kindLabel(current.kind) }}
+        </template>
+        <template v-else>{{ t("home.noVersion") }}</template>
+      </div>
+    </div>
+
+    <!-- 启动 -->
+    <div v-if="current" class="hero-actions">
+      <button class="big-launch" :disabled="launching" @click="play">
+        <span v-if="launching" class="spinner"></span>
+        <span class="bl-main">{{ launching ? t("home.launching") : t("home.launch") }}</span>
+        <span class="bl-sub mono">{{ current.name }}</span>
+      </button>
+
+      <div class="hero-row">
+        <button class="hero-sq" @click="emit('goto', 'versions')">
+          {{ t("home.pickVersion") }}
+        </button>
+        <button class="hero-sq" @click="emit('goto', 'instances')">
+          {{ t("home.versionSettings") }}
+        </button>
+      </div>
+
+      <div v-if="report" class="report-line">
+        <span class="report mono">{{ report }}</span>
+        <button class="log-link" @click="showLog = true">{{ t("home.log") }}</button>
+      </div>
+    </div>
+
+    <section v-else-if="!loading" class="empty">
       <div class="empty-title">{{ t("home.noInstances") }}</div>
       <p class="empty-desc">{{ t("home.noInstancesDesc") }}</p>
       <button class="primary" @click="emit('goto', 'versions')">
         {{ t("home.goInstall") }} →
       </button>
-    </section>
-
-    <section v-else-if="current" class="launcher">
-      <div class="lc-top">
-        <div class="lc-info">
-          <div class="lc-name">{{ current.name }}</div>
-          <div class="lc-meta mono">
-            <span class="tag">{{ kindLabel(current.kind) }}</span>
-            <span>{{ current.libraryCount }} {{ t("home.libs") }}</span>
-            <span class="sep">·</span>
-            <span>Java {{ current.javaMajor ?? "?" }}</span>
-            <span class="sep">·</span>
-            <span>{{ current.memoryMb ?? 4096 }} MB</span>
-          </div>
-          <div class="lc-path mono">{{ current.gameDir }}</div>
-        </div>
-        <div class="lc-time mono">{{ fmtAgo(current.lastPlayed) }}</div>
-      </div>
-
-      <button class="launch" :disabled="launching" @click="play">
-        <span v-if="launching" class="spinner"></span>
-        {{ launching ? t("home.launching") : t("home.launch") }}
-      </button>
-
-      <div v-if="report" class="report mono">{{ report }}</div>
-
-      <div class="lc-foot">
-        <div class="chips">
-          <button
-            v-for="i in instances.slice(0, 6)"
-            :key="i.id"
-            class="chip"
-            :class="{ on: i.id === current.id }"
-            @click="select(i.id)"
-          >
-            {{ i.name }}
-          </button>
-        </div>
-        <div class="foot-actions">
-          <button class="mini" @click="openInstanceFolder(current.id)">{{ t("home.folder") }}</button>
-          <button class="mini" @click="showLog = true">{{ t("home.log") }}</button>
-        </div>
-      </div>
     </section>
 
     <section v-if="recent.length" class="recent">
@@ -239,14 +245,15 @@ function kindLabel(kind: string | null) {
 </template>
 
 <style scoped>
-.wrap { padding: 26px 32px 60px; width: 100%; max-width: clamp(1180px, 62vw, 1800px); margin: 0 auto; box-sizing: border-box; }
+.wrap {
+  display: flex;
+  flex-direction: column; padding: 26px 32px 60px; width: 100%; max-width: clamp(1180px, 62vw, 1800px); margin: 0 auto; box-sizing: border-box; }
 .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .eyebrow { font-size: 10px; letter-spacing: 1.4px; color: var(--ink-3); margin-bottom: 7px; }
 h1 { margin: 0; font-size: 25px; font-weight: 600; letter-spacing: -0.5px; color: var(--ink); }
 
 .account-chip { display: flex; align-items: center; gap: 9px; padding: 7px 13px 7px 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--card); cursor: pointer; transition: background 0.15s; }
 .account-chip:hover { background: var(--card-hover); }
-.av { flex: none; }
 .chip-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; }
 .chip-name { font-size: 12px; font-weight: 500; color: var(--ink); }
 .chip-kind { font-size: 9.5px; color: var(--ink-3); }
@@ -389,4 +396,158 @@ h1 { margin: 0; font-size: 25px; font-weight: 600; letter-spacing: -0.5px; color
 @media (min-width: 1600px) {
   .wrap { padding: 32px 48px 72px; }
 }
+
+/* ───── PCL 手机版式启动台 ───── */
+
+.kind-switch {
+  display: flex;
+  gap: 3px;
+  align-self: center;
+  padding: 3px;
+  margin-bottom: 42px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--card);
+}
+
+.kind {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 17px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  transition:
+    background var(--dur-2) var(--ease-apple),
+    color var(--dur-2) var(--ease-apple);
+}
+
+.kind:hover:not(.on) { color: var(--ink); }
+
+.kind.on {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.kind-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+.kind.on .kind-dot { opacity: 1; }
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 32px;
+}
+
+.hero-name {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.hero-sub {
+  font-size: 12px;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.dot-sep { margin: 0 5px; opacity: 0.45; }
+
+.hero-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(520px, 100%);
+  align-self: center;
+  margin-bottom: 40px;
+}
+
+.big-launch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 17px;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-card);
+  transition:
+    transform var(--dur-2) var(--ease-apple),
+    border-color var(--dur-2) var(--ease-apple),
+    background var(--dur-2) var(--ease-apple);
+}
+
+.big-launch:hover:not(:disabled) {
+  border-color: var(--ink-4);
+  background: var(--card-hover);
+}
+
+.big-launch:active:not(:disabled) { transform: scale(0.988); }
+.big-launch:disabled { opacity: 0.6; }
+
+.bl-main {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bl-sub {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.hero-row {
+  display: flex;
+  gap: 12px;
+}
+
+.hero-sq {
+  flex: 1;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 13px;
+  transition:
+    background var(--dur-1) var(--ease-apple),
+    border-color var(--dur-1) var(--ease-apple);
+}
+
+.hero-sq:hover {
+  background: var(--card-hover);
+  border-color: var(--ink-4);
+}
+
+.report-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.log-link {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.log-link:hover { color: var(--ink); }
 </style>

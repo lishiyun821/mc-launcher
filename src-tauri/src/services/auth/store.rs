@@ -49,7 +49,12 @@ fn default_kind() -> String {
 
 impl StoredAccount {
     /// 令牌是否过期（留 5 分钟余量）
+    ///
+    /// 离线账户没有令牌，永远不算过期。
     pub fn is_expired(&self) -> bool {
+        if !self.is_msa() {
+            return false;
+        }
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)

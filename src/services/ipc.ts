@@ -79,6 +79,9 @@ export const verifyInstance = (id: string) =>
 
 /* ───────── 账户 ───────── */
 
+export const addOfflineAccount = (name: string) =>
+  call<import("@/types").AccountInfo>("add_offline_account", { name });
+
 export const listAccounts = () =>
   call<import("@/types").AccountsView>("list_accounts");
 

@@ -41,6 +41,11 @@ export default {
     loginDesc:
       "Signing in with a Microsoft account gives you premium skins, access to online servers and your real name in game. Click below to get an 8-character code — no password goes into this launcher.",
     loginMs: "Sign in with Microsoft",
+    addOfflineTitle: "Add offline account",
+    addOfflineDesc: "No Microsoft account needed. Just pick a name — works for single player and offline servers, but not for servers requiring a verified account.",
+    offlineNamePlaceholder: "Player name (3-16 letters, digits or underscore)",
+    add: "Add",
+    adding: "Adding…",
     offlineHint:
       "You can play without signing in — the offline account \"{name}\" will be used. Single player works fine; only verified servers are off limits.",
     allAccounts: "All accounts",
@@ -101,6 +106,9 @@ export default {
     launch: "Launch game",
     launching: "Launching…",
     launchFailed: "Launch failed: ",
+    pickVersion: "Pick version",
+    versionSettings: "Version settings",
+    noVersion: "No version installed yet",
     recent: "Recently played",
     neverPlayed: "never played",
     justNow: "just now",

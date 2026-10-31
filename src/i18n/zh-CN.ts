@@ -41,6 +41,11 @@ export default {
     loginDesc:
       "登录微软账户后可以用正版皮肤、进正版服务器、让别的玩家看到你的真实名字。点下面的按钮会出现一个 8 位代码，在浏览器里输一下就好，不用在这填密码。",
     loginMs: "用微软账户登录",
+    addOfflineTitle: "添加离线账户",
+    addOfflineDesc: "不用微软账号。填个名字就能进单人游戏和离线服务器，只是进不了需要正版验证的大服务器。",
+    offlineNamePlaceholder: "玩家名（3-16 位字母、数字或下划线）",
+    add: "添加",
+    adding: "添加中…",
     offlineHint:
       "不登录也能玩 —— 会用离线账户「{name}」启动。单人游戏完全正常，只是进不了需要正版验证的服务器。",
     allAccounts: "所有账户",
@@ -101,6 +106,9 @@ export default {
     launch: "启动游戏",
     launching: "启动中…",
     launchFailed: "启动失败：",
+    pickVersion: "版本选择",
+    versionSettings: "版本设置",
+    noVersion: "还没有安装版本",
     recent: "最近玩过",
     neverPlayed: "还没玩过",
     justNow: "刚刚玩过",
