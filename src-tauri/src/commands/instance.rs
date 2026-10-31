@@ -57,7 +57,7 @@ pub async fn open_instance_folder(id: String) -> Result<String, String> {
 
     #[cfg(windows)]
     {
-        std::process::Command::new("explorer")
+        crate::core::shell::hidden_command("explorer")
             .arg(&dir)
             .spawn()
             .map_err(|e| e.to_string())?;
@@ -86,7 +86,7 @@ pub async fn open_game_folder() -> Result<String, String> {
     let mc_dir = version::default_mc_dir();
     #[cfg(windows)]
     {
-        std::process::Command::new("explorer")
+        crate::core::shell::hidden_command("explorer")
             .arg(&mc_dir)
             .spawn()
             .map_err(|e| e.to_string())?;

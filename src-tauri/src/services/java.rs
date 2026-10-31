@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use tokio::process::Command;
 
 use crate::core::models::JavaInfo;
 
@@ -118,7 +117,7 @@ fn exe(name: &str) -> String {
 /// 执行 java -version 解析版本
 /// 注意：Java 把版本信息打到 **stderr**，不是 stdout
 async fn probe(path: &PathBuf) -> Option<JavaInfo> {
-    let out = Command::new(path).arg("-version").output().await.ok()?;
+    let out = crate::core::shell::hidden_command(path).arg("-version").output().await.ok()?;
     let text = String::from_utf8_lossy(&out.stderr).to_string()
         + &String::from_utf8_lossy(&out.stdout);
 
