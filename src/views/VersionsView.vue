@@ -309,8 +309,6 @@ function launchLine(r: LaunchReport) {
         </div>
       </div>
     </div>
-  </div>
-
     <!-- ───── 加载器选择器 ───── -->
     <div v-if="loaderOpen" class="loader-mask">
       <div class="loader-panel">
@@ -378,6 +376,7 @@ function launchLine(r: LaunchReport) {
         </footer>
       </div>
     </div>
+  </div>
 
 </template>
 
