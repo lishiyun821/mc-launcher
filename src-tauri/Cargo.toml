@@ -1,6 +1,6 @@
 [package]
 name = "mc-launcher"
-version = "0.1.1"
+version = "0.1.2"
 description = "A full-featured open source Minecraft launcher"
 authors = ["you"]
 edition = "2021"
@@ -52,6 +52,8 @@ hex = "0.4"
 # 文件遍历 / 解压
 walkdir = "2"
 zip = "2"
+tauri-plugin-updater = "2.0.0-rc.4"
+tauri-plugin-process = "2.0.0-rc.1"
 
 [profile.release]
 opt-level = "s"

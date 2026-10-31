@@ -26,3 +26,6 @@ Thumbs.db
 
 # 开发期随手存的截图（正式图在 docs/screenshots）
 _旧截图/
+
+# updater 构建产物（由 CI 生成，不提交）
+latest.json

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { getVersion } from "@tauri-apps/api/app";
+import { check as checkUpdater } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { computed, onMounted, ref } from "vue";
 import { getConfig, setConfig, scanJava, installJava, checkUpdate, type JavaInfo, type UpdateInfo } from "@/services/ipc";
 import { useI18n, languages } from "@/i18n";
@@ -85,23 +87,97 @@ const themeOptions = computed(() => [
 const checking = ref(false);
 const upd = ref<UpdateInfo | null>(null);
 
+/** 官方 updater 找到可装的新版（能直接下能直接装） */
+const canInstall = ref(false);
+/** 下载进度 0-100 */
+const dlProgress = ref(0);
+const dlBusy = ref(false);
+const dlError = ref("");
+
+function blankInfo(err: string | null = null): UpdateInfo {
+  return {
+    current: appVersion.value,
+    latest: null,
+    hasUpdate: false,
+    url: "https://github.com/lishiyun821/mc-launcher/releases",
+    notes: null,
+    publishedAt: null,
+    error: err,
+  };
+}
+
 async function doCheckUpdate() {
-  if (checking.value) return;
+  if (checking.value || dlBusy.value) return;
   checking.value = true;
+  canInstall.value = false;
+  dlError.value = "";
+
+  // 先走官方 updater —— 它能直接下载安装
+  try {
+    const u = await checkUpdater();
+    checking.value = false;
+    if (u) {
+      canInstall.value = true;
+      upd.value = {
+        current: appVersion.value,
+        latest: u.version,
+        hasUpdate: true,
+        url: "https://github.com/lishiyun821/mc-launcher/releases/latest",
+        notes: u.body ?? null,
+        publishedAt: u.date ?? null,
+        error: null,
+      };
+    } else {
+      upd.value = blankInfo();
+    }
+    return;
+  } catch {
+    // updater 用不了（网络 / 签名 / 平台不支持）→ 回落到 GitHub 检查，至少能提示
+  }
+
   try {
     upd.value = await checkUpdate();
   } catch (e) {
-    upd.value = {
-      current: "?",
-      latest: null,
-      hasUpdate: false,
-      url: "",
-      notes: null,
-      publishedAt: null,
-      error: e instanceof Error ? e.message : String(e),
-    };
+    upd.value = blankInfo(e instanceof Error ? e.message : String(e));
   } finally {
     checking.value = false;
+  }
+}
+
+/** 下载并安装更新。Windows 上安装器接管后应用会自动退出，跑完用户重开就是新版 */
+async function doInstallUpdate() {
+  if (dlBusy.value) return;
+  dlBusy.value = true;
+  dlProgress.value = 0;
+  dlError.value = "";
+
+  try {
+    const u = await checkUpdater();
+    if (!u) {
+      dlError.value = t("settings.noUpdate");
+      return;
+    }
+
+    let downloaded = 0;
+    let total = 0;
+    await u.downloadAndInstall((ev) => {
+      if (ev.event === "Started") {
+        total = ev.data.contentLength ?? 0;
+      } else if (ev.event === "Progress") {
+        downloaded += ev.data.chunkLength;
+        // 留 1% 给安装阶段，避免停在 100% 不动
+        dlProgress.value = total > 0 ? Math.min(99, Math.round((downloaded / total) * 100)) : 0;
+      } else if (ev.event === "Finished") {
+        dlProgress.value = 100;
+      }
+    });
+
+    // 非 Windows 平台装完需要自己重启；Windows 上进程已被安装器结束
+    await relaunch().catch(() => {});
+  } catch (e) {
+    dlError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    dlBusy.value = false;
   }
 }
 
@@ -290,7 +366,18 @@ async function save() {
             >GitHub</a>
           </div>
           <div class="about-status">
-            <span v-if="checking" class="st">{{ t("settings.checking") }}</span>
+            <template v-if="dlBusy">
+              <span class="st">
+                {{ dlProgress >= 100 ? t("settings.installing") : t("settings.downloading") }}
+                <span class="mono">{{ dlProgress }}%</span>
+              </span>
+              <div class="dl-bar"><div class="dl-fill" :style="{ width: dlProgress + '%' }"></div></div>
+            </template>
+            <span v-else-if="dlError" class="st warn">{{ dlError }}</span>
+            <span v-else-if="checking" class="st">{{ t("settings.checking") }}</span>
+            <span v-else-if="upd?.hasUpdate && canInstall" class="st new">
+              {{ t("settings.newVersion") }} <span class="mono">{{ upd.latest }}</span>
+            </span>
             <a
               v-else-if="upd?.hasUpdate"
               class="st new"
@@ -302,7 +389,15 @@ async function save() {
             <span v-else-if="upd" class="st ok">✓ {{ t("settings.upToDate") }}</span>
           </div>
         </div>
-        <button class="btn" :disabled="checking" @click="doCheckUpdate">
+        <button
+          v-if="upd?.hasUpdate && canInstall"
+          class="btn primary"
+          :disabled="dlBusy"
+          @click="doInstallUpdate"
+        >
+          {{ dlBusy ? t("settings.installing") : t("settings.installUpdate") }}
+        </button>
+        <button v-else class="btn" :disabled="checking || dlBusy" @click="doCheckUpdate">
           {{ checking ? t("settings.checking") : t("settings.checkUpdate") }}
         </button>
       </div>
@@ -563,6 +658,23 @@ h1 {
 .about-status .st.new {
   color: var(--ink);
   font-weight: 500;
+}
+
+/* 更新下载进度条 */
+.dl-bar {
+  margin-top: 6px;
+  width: 168px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.dl-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ink);
+  transition: width 320ms var(--ease-apple);
 }
 
 .about-status .st.new:hover {
