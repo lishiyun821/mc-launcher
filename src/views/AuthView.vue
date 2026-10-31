@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import SkinAvatar from "@/components/SkinAvatar.vue";
 import {
   getConfig,
   listAccounts,
@@ -166,10 +167,6 @@ function fmtExpire(sec: number) {
 function renewTip(a: AccountInfo) {
   return t("auth.renewTip").replace("{time}", fmtExpire(a.expiresAt));
 }
-
-function initial(name: string) {
-  return (name || "?").slice(0, 1).toUpperCase();
-}
 </script>
 
 <template>
@@ -215,7 +212,10 @@ function initial(name: string) {
 
     <!-- 当前账户 -->
     <section v-else-if="activeAccount" class="card now">
-      <div class="avatar">{{ initial(activeAccount.name) }}</div>
+      <SkinAvatar :uuid="activeAccount.uuid"
+        :name="activeAccount.name"
+        :skin-url="activeAccount.skinUrl"
+        :size="52" />
       <div class="now-main">
         <div class="now-name">{{ activeAccount.name }}</div>
         <div class="meta mono">{{ activeAccount.uuid }}</div>
@@ -264,7 +264,10 @@ function initial(name: string) {
     <section v-if="accounts.length" class="list">
       <div class="group-title">{{ t("auth.allAccounts") }}</div>
       <div v-for="a in accounts" :key="a.id" class="row" :class="{ on: a.id === activeId }">
-        <div class="avatar small">{{ initial(a.name) }}</div>
+        <SkinAvatar :uuid="a.uuid"
+          :name="a.name"
+          :skin-url="a.skinUrl"
+          :size="32" />
         <div class="row-main">
           <div class="row-name">
             {{ a.name }}
@@ -426,26 +429,6 @@ h1 {
   gap: 14px;
   margin-bottom: 22px;
   flex-wrap: wrap;
-}
-
-.avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  font-size: 21px;
-  font-weight: 600;
-  color: var(--bg);
-  background: var(--ink);
-  flex-shrink: 0;
-}
-
-.avatar.small {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  font-size: 14px;
 }
 
 .now-main {

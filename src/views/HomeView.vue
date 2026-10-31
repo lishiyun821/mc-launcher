@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import SkinAvatar from "@/components/SkinAvatar.vue";
 import {
   getConfig,
   launchVersion,
@@ -125,7 +126,13 @@ function kindLabel(kind: string | null) {
         <h1>{{ t("home.readyTitle") }}</h1>
       </div>
       <button class="account-chip" @click="emit('goto', 'auth')">
-        <span class="av">{{ (activeAccount?.name ?? playerName).slice(0, 1).toUpperCase() }}</span>
+        <SkinAvatar
+          class="av"
+          :uuid="activeAccount?.uuid"
+          :name="activeAccount?.name ?? playerName"
+          :skin-url="activeAccount?.skinUrl"
+          :size="28"
+        />
         <span class="chip-text">
           <span class="chip-name">{{ activeAccount?.name ?? playerName }}</span>
           <span class="chip-kind mono">
@@ -239,7 +246,7 @@ h1 { margin: 0; font-size: 25px; font-weight: 600; letter-spacing: -0.5px; color
 
 .account-chip { display: flex; align-items: center; gap: 9px; padding: 7px 13px 7px 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--card); cursor: pointer; transition: background 0.15s; }
 .account-chip:hover { background: var(--card-hover); }
-.av { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--bg); background: var(--ink); }
+.av { flex: none; }
 .chip-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; }
 .chip-name { font-size: 12px; font-weight: 500; color: var(--ink); }
 .chip-kind { font-size: 9.5px; color: var(--ink-3); }
