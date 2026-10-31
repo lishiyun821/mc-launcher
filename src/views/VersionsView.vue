@@ -19,21 +19,77 @@ const manifest = ref<VersionManifest | null>(null);
 const local = ref<string[]>([]);
 const loading = ref(false);
 const error = ref("");
-const filter = ref<"release" | "all">("release");
 const query = ref("");
 
-const typeLabel = computed<Record<string, string>>(() => ({
-  release: t("versions.typeRelease"),
-  snapshot: t("versions.typeSnapshot"),
-  old_beta: t("versions.typeOldBeta"),
-  old_alpha: t("versions.typeOldAlpha"),
-}));
+/** 还没做的分类（先占位，跟 PCL 的左栏对应） */
+const soonCats = computed(() => [
+  t("versions.catMod"),
+  t("versions.catModpack"),
+  t("versions.catDatapack"),
+  t("versions.catResourcepack"),
+  t("versions.catShader"),
+]);
 
+/** 分组折叠状态（默认只展开正式版，跟 PCL 一样别一屏堆 900 行） */
+const openGroups = ref<Record<string, boolean>>({ release: true, snapshot: false, old: false });
+/** 每组再单独限流，避免一次渲染几百行 */
+const expanded = ref<Record<string, boolean>>({});
+const GROUP_LIMIT = 40;
+
+function toggleGroup(key: string) {
+  openGroups.value = { ...openGroups.value, [key]: !openGroups.value[key] };
+}
+
+function showMore(key: string) {
+  expanded.value = { ...expanded.value, [key]: true };
+}
+
+/** 搜索过滤后的全集 */
 const shown = computed<VersionSummary[]>(() => {
   const all = manifest.value?.versions ?? [];
-  const base = filter.value === "release" ? all.filter((v) => v.type === "release") : all;
   const q = query.value.trim().toLowerCase();
-  return q ? base.filter((v) => v.id.toLowerCase().includes(q)) : base;
+  return q ? all.filter((v) => v.id.toLowerCase().includes(q)) : all;
+});
+
+/** 按类型分组：正式版 / 预览版 / 远古版 */
+const groups = computed(() => {
+  const all = shown.value;
+  const searching = query.value.trim().length > 0;
+  return [
+    {
+      key: "release",
+      label: t("versions.groupRelease"),
+      items: all.filter((v) => v.type === "release"),
+    },
+    {
+      key: "snapshot",
+      label: t("versions.groupSnapshot"),
+      items: all.filter((v) => v.type === "snapshot"),
+    },
+    {
+      key: "old",
+      label: t("versions.groupOld"),
+      items: all.filter((v) => v.type === "old_beta" || v.type === "old_alpha"),
+    },
+  ]
+    .filter((g) => g.items.length > 0)
+    .map((g) => ({
+      ...g,
+      // 搜索时自动全展开，否则按折叠状态
+      open: searching || !!openGroups.value[g.key],
+      // 每组默认只渲染前 N 个
+      visible: expanded.value[g.key] || searching ? g.items : g.items.slice(0, GROUP_LIMIT),
+      hidden: expanded.value[g.key] || searching ? 0 : Math.max(0, g.items.length - GROUP_LIMIT),
+    }));
+});
+
+/** 最新版本卡片：最新的正式版 + 最新的预览版 */
+const latestTwo = computed(() => {
+  const vs = manifest.value?.versions ?? [];
+  return [
+    vs.find((v) => v.type === "release"),
+    vs.find((v) => v.type === "snapshot"),
+  ].filter((v): v is VersionSummary => !!v);
 });
 
 async function load(force = false) {
@@ -223,92 +279,174 @@ function launchLine(r: LaunchReport) {
 
 <template>
   <div class="page">
-    <header>
-      <div class="eyebrow">{{ t("versions.eyebrow") }}</div>
-      <h1>{{ t("versions.title") }}</h1>
-      <p class="sub">
-        {{ t("versions.total") }}
-        <span class="mono">{{ manifest?.versions.length ?? 0 }}</span>
-        {{ t("versions.totalUnit") }} · {{ t("versions.latestRelease") }}
-        <span class="mono">{{ manifest?.latest.release ?? "—" }}</span>
-        · {{ t("versions.local") }}
-        <span class="mono">{{ local.length }}</span>
-        {{ t("versions.localUnit") }}
-      </p>
-    </header>
-
-    <div class="toolbar">
-      <div class="seg">
-        <button :class="{ on: filter === 'release' }" @click="filter = 'release'">
-          {{ t("versions.filterRelease") }}
-        </button>
-        <button :class="{ on: filter === 'all' }" @click="filter = 'all'">
-          {{ t("versions.filterAll") }}
-        </button>
-      </div>
-      <input
-        v-model="query"
-        class="search"
-        :placeholder="t('versions.searchPlaceholder')"
-        spellcheck="false"
-      />
-      <div class="spacer"></div>
-      <button class="btn" :disabled="loading" @click="load(true)">
-        {{ loading ? t("versions.refreshing") : t("versions.refresh") }}
+    <!-- ───── 左侧分类 ───── -->
+    <aside class="side">
+      <button class="cat on">
+        <span class="dot"></span>
+        <span class="cat-name">{{ t("versions.catGame") }}</span>
       </button>
-    </div>
+      <div class="side-group">{{ t("versions.catCommunity") }}</div>
+      <button v-for="c in soonCats" :key="c" class="cat soon" disabled>
+        <span class="dot"></span>
+        <span class="cat-name">{{ c }}</span>
+        <span class="soon-tag">{{ t("versions.soon") }}</span>
+      </button>
+    </aside>
 
-    <div v-if="error" class="err mono">{{ error }}</div>
-    <div v-if="launchError" class="err mono">{{ launchError }}</div>
-    <div class="list">
-      <div v-if="loading && !manifest" class="empty">{{ t("versions.loading") }}</div>
-      <div v-else-if="!shown.length" class="empty">{{ t("versions.empty") }}</div>
-      <div
-        v-for="v in shown"
-        :key="v.id"
-        class="row"
-        :class="{ busy: installingId === v.id }"
-      >
-        <span class="id mono">{{ v.id }}</span>
-        <span class="tag" :class="v.type">{{ typeLabel[v.type] ?? v.type }}</span>
-        <span v-if="v.isLatest" class="tag latest">{{ t("versions.latest") }}</span>
-        <span v-if="isLocal(v.id)" class="tag local">{{ t("versions.installed") }}</span>
-        <span class="spacer"></span>
-        <span class="date mono">{{ shortDate(v.releaseTime) }}</span>
-        <button
-          v-if="isLocal(v.id)"
-          class="mini play"
-          :disabled="launchingId !== null || installingId !== null"
-          @click="play(v)"
-        >
-          {{ launchingId === v.id ? t("versions.launching") : t("versions.play") }}
-        </button>
-        <button
-          v-if="v.type === 'release'"
-          class="mini fabric"
-          :disabled="installingId !== null || fabricBusy !== null"
-          @click="openLoaderPicker(v)"
-        >
-          Fabric
-        </button>
-        <button class="mini" :disabled="installingId !== null || fabricBusy !== null" @click="install(v)">
-          {{
-            installingId === v.id
-              ? t("versions.installing")
-              : isLocal(v.id)
-                ? t("versions.reinstall")
-                : t("versions.install")
-          }}
-        </button>
-        <div v-if="reports[v.id]" class="report mono">{{ reportLine(reports[v.id]) }}</div>
-        <div v-if="fabricReports[v.id]" class="report ok mono">
-          ✓ Fabric · {{ reportLine(fabricReports[v.id]) }}
+    <!-- ───── 右侧内容 ───── -->
+    <main class="main">
+      <header class="head">
+        <div class="head-title">
+          <h1>{{ t("versions.title") }}</h1>
+          <p class="sub">
+            {{ t("versions.total") }}
+            <span class="mono">{{ manifest?.versions.length ?? 0 }}</span>
+            {{ t("versions.totalUnit") }}
+            · {{ t("versions.local") }}
+            <span class="mono">{{ local.length }}</span>
+            {{ t("versions.localUnit") }}
+          </p>
         </div>
-        <div v-if="launchReports[v.id]" class="report ok mono">
-          {{ launchLine(launchReports[v.id]) }}
+        <div class="head-actions">
+          <input
+            v-model="query"
+            class="search"
+            :placeholder="t('versions.searchPlaceholder')"
+            spellcheck="false"
+          />
+          <button class="btn" :disabled="loading" @click="load(true)">
+            {{ loading ? t("versions.refreshing") : t("versions.refresh") }}
+          </button>
         </div>
+      </header>
+
+      <div v-if="error" class="err mono">{{ error }}</div>
+      <div v-if="launchError" class="err mono">{{ launchError }}</div>
+
+      <div class="scroll">
+        <div v-if="loading && !manifest" class="empty">{{ t("versions.loading") }}</div>
+
+        <template v-else>
+          <!-- 最新版本 -->
+          <section v-if="!query.trim() && latestTwo.length" class="card">
+            <div class="card-title">{{ t("versions.latestVersions") }}</div>
+            <div v-for="lv in latestTwo" :key="lv.id" class="latest-row">
+              <span class="cube" :class="lv.type"></span>
+              <div class="lv-info">
+                <div class="lv-id mono">{{ lv.id }}</div>
+                <div class="lv-sub">
+                  {{
+                    lv.type === "release"
+                      ? t("versions.latestReleaseLine")
+                      : t("versions.latestSnapshotLine")
+                  }}
+                  · {{ lv.releaseTime.slice(0, 10) }}
+                </div>
+              </div>
+              <span class="spacer"></span>
+              <button
+                v-if="isLocal(lv.id)"
+                class="mini play"
+                :disabled="launchingId !== null || installingId !== null"
+                @click="play(lv)"
+              >
+                {{ launchingId === lv.id ? t("versions.launching") : t("versions.play") }}
+              </button>
+              <button
+                v-if="lv.type === 'release'"
+                class="mini fabric"
+                :disabled="installingId !== null || fabricBusy !== null"
+                @click="openLoaderPicker(lv)"
+              >
+                Fabric
+              </button>
+              <button
+                class="mini"
+                :disabled="installingId !== null || fabricBusy !== null"
+                @click="install(lv)"
+              >
+                {{
+                  installingId === lv.id
+                    ? t("versions.installing")
+                    : isLocal(lv.id)
+                      ? t("versions.reinstall")
+                      : t("versions.install")
+                }}
+              </button>
+            </div>
+          </section>
+
+          <!-- 分组列表 -->
+          <section v-for="g in groups" :key="g.key" class="card">
+            <button class="group-head" @click="toggleGroup(g.key)">
+              <span class="group-name">{{ g.label }}</span>
+              <span class="group-count mono">{{ g.items.length }}</span>
+              <span class="spacer"></span>
+              <span class="chev" :class="{ open: g.open }">›</span>
+            </button>
+
+            <div v-show="g.open" class="group-body">
+              <div
+                v-for="v in g.visible"
+                :key="v.id"
+                class="row"
+                :class="{ busy: installingId === v.id }"
+              >
+                <span class="id mono">{{ v.id }}</span>
+                <span v-if="v.isLatest" class="tag latest">{{ t("versions.latest") }}</span>
+                <span v-if="isLocal(v.id)" class="tag local">{{ t("versions.installed") }}</span>
+                <span class="spacer"></span>
+                <span class="date mono">{{ shortDate(v.releaseTime) }}</span>
+                <button
+                  v-if="isLocal(v.id)"
+                  class="mini play"
+                  :disabled="launchingId !== null || installingId !== null"
+                  @click="play(v)"
+                >
+                  {{ launchingId === v.id ? t("versions.launching") : t("versions.play") }}
+                </button>
+                <button
+                  v-if="v.type === 'release'"
+                  class="mini fabric"
+                  :disabled="installingId !== null || fabricBusy !== null"
+                  @click="openLoaderPicker(v)"
+                >
+                  Fabric
+                </button>
+                <button
+                  class="mini"
+                  :disabled="installingId !== null || fabricBusy !== null"
+                  @click="install(v)"
+                >
+                  {{
+                    installingId === v.id
+                      ? t("versions.installing")
+                      : isLocal(v.id)
+                        ? t("versions.reinstall")
+                        : t("versions.install")
+                  }}
+                </button>
+                <div v-if="reports[v.id]" class="report mono">{{ reportLine(reports[v.id]) }}</div>
+                <div v-if="fabricReports[v.id]" class="report ok mono">
+                  ✓ Fabric · {{ reportLine(fabricReports[v.id]) }}
+                </div>
+                <div v-if="launchReports[v.id]" class="report ok mono">
+                  {{ launchLine(launchReports[v.id]) }}
+                </div>
+              </div>
+
+              <button v-if="g.hidden" class="more" @click="showMore(g.key)">
+                {{ t("versions.showMore") }}
+                <span class="mono">+{{ g.hidden }}</span>
+              </button>
+            </div>
+          </section>
+
+          <div v-if="!groups.length" class="empty">{{ t("versions.empty") }}</div>
+        </template>
       </div>
-    </div>
+    </main>
+
     <!-- ───── 加载器选择器 ───── -->
     <div v-if="loaderOpen" class="loader-mask">
       <div class="loader-panel">
@@ -382,9 +520,7 @@ function launchLine(r: LaunchReport) {
 
 <style scoped>
 .page {
-  padding: 34px 40px 24px;
   display: flex;
-  flex-direction: column;
   height: 100%;
   min-height: 0;
 }
@@ -495,6 +631,8 @@ h1 {
 .row {
   display: flex;
   align-items: center;
+  padding-top: 9px;
+  padding-bottom: 9px;
   gap: 8px;
   padding: 7px 13px;
   border-bottom: 1px solid var(--line-2);
@@ -861,4 +999,220 @@ h1 {
   .loader-mask,
   .loader-panel { animation: none; }
 }
+
+/* ───── 左侧分类 ───── */
+
+.side {
+  flex: none;
+  width: 152px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 22px 0 16px 8px;
+  border-right: 1px solid var(--line-2);
+}
+
+.cat {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+  text-align: left;
+  transition: background var(--dur-1) var(--ease-apple);
+}
+
+.cat:hover:not(:disabled) { background: var(--card-hover); }
+
+.cat.on {
+  position: relative;
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 550;
+}
+
+.cat.on::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  border-radius: 0 2px 2px 0;
+  background: var(--ink);
+  transform: translateY(-50%);
+}
+
+.cat.on .dot { background: var(--ink); }
+.cat.soon { opacity: 0.42; cursor: default; }
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--ink-4);
+}
+
+.cat-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.soon-tag {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ink-4);
+}
+
+.side-group {
+  padding: 16px 12px 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* ───── 右侧内容 ───── */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 30px 18px;
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.head .sub {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-right: -4px;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
+.card {
+  flex: none;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.card-title {
+  padding: 13px 16px 3px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+/* 最新版本 */
+
+.latest-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+}
+
+.latest-row + .latest-row { border-top: 1px solid var(--line-2); }
+
+.cube {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--ink-4);
+}
+
+.cube.release { background: linear-gradient(145deg, #86b077, #4d7342); }
+.cube.snapshot { background: linear-gradient(145deg, #cfae6d, #92703c); }
+
+.lv-info { min-width: 0; }
+.lv-id { font-size: 14px; color: var(--ink); }
+.lv-sub { margin-top: 2px; font-size: 11.5px; color: var(--ink-3); }
+
+/* 分组折叠 */
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 13px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  transition: background var(--dur-1) var(--ease-apple);
+}
+
+.group-head:hover { background: var(--card-hover); }
+
+.group-name { font-size: 13.5px; font-weight: 550; }
+
+.group-count {
+  padding: 1px 7px;
+  font-size: 10.5px;
+  border-radius: 999px;
+  background: var(--card-hover);
+  color: var(--ink-3);
+}
+
+.chev {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-4);
+  transition: transform var(--dur-2) var(--ease-apple);
+}
+
+.chev.open { transform: rotate(90deg); }
+
+.group-body { border-top: 1px solid var(--line-2); }
+
+.more {
+  width: 100%;
+  padding: 11px;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px;
+  transition: background var(--dur-1) var(--ease-apple);
+}
+
+.more:hover { background: var(--card-hover); color: var(--ink); }
 </style>
