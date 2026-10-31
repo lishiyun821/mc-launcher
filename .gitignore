@@ -29,3 +29,7 @@ _旧截图/
 
 # updater 构建产物（由 CI 生成，不提交）
 latest.json
+
+# 根目录的本地编译产物（方便双击的入口，不进仓库）
+/MC Launcher.exe
+/MC Launcher.exe.sig
