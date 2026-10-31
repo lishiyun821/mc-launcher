@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { fetchVersionManifest, listLocalVersions, installVersion, installFabric, launchVersion, getConfig } from "@/services/ipc";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import {
+  fetchVersionManifest,
+  listLocalVersions,
+  installVersion,
+  listFabricLoaders,
+  installFabric,
+  launchVersion,
+  getConfig,
+} from "@/services/ipc";
 import { useI18n } from "@/i18n";
+import type { FabricLoader } from "@/services/ipc";
 import type { InstallReport, LaunchReport, VersionManifest, VersionSummary } from "@/types";
 
 const { t } = useI18n();
@@ -73,21 +82,92 @@ async function install(v: VersionSummary) {
   }
 }
 
-/* ───── Fabric 加载器 ───── */
+/* ───── 模组加载器（Fabric）───── */
 
 const fabricBusy = ref<string | null>(null);
 const fabricReports = ref<Record<string, InstallReport>>({});
 
-/** 给这个游戏版本装一份 Fabric，装完会多出一个 fabric-loader-x-y 的版本 */
-async function installFabricFor(v: VersionSummary) {
-  if (fabricBusy.value !== null || installingId.value !== null) return;
-  fabricBusy.value = v.id;
+/** 选择器状态 */
+const loaderOpen = ref(false);
+const loaderGame = ref("");
+const loaderLoading = ref(false);
+const loaderError = ref("");
+const loaders = ref<FabricLoader[]>([]);
+const loaderPick = ref("");
+const loaderQuery = ref("");
+
+/** 列表里最新的那个 loader（用来标「最新」） */
+const latestLoader = computed(() => loaders.value[0]?.version ?? "");
+
+/** 过滤后的 loader 列表 */
+const shownLoaders = computed<FabricLoader[]>(() => {
+  const q = loaderQuery.value.trim().toLowerCase();
+  return q ? loaders.value.filter((l) => l.version.toLowerCase().includes(q)) : loaders.value;
+});
+
+/** 拉某个游戏版本的加载器列表，默认选中最新稳定版 */
+async function loadLoaders(game: string) {
+  loaderLoading.value = true;
+  loaderError.value = "";
+  loaders.value = [];
+  loaderPick.value = "";
+  loaderQuery.value = "";
   try {
-    const r = await installFabric(v.id);
-    fabricReports.value = { ...fabricReports.value, [v.id]: r };
-    local.value = await listLocalVersions().catch(() => []);
+    const list = await listFabricLoaders(game);
+    loaders.value = list;
+    const preferred = list.find((l) => l.stable) ?? list[0];
+    loaderPick.value = preferred?.version ?? "";
   } catch (e) {
-    console.error("[fabric]", e);
+    loaderError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    loaderLoading.value = false;
+  }
+}
+
+function openLoaderPicker(v: VersionSummary) {
+  if (installingId.value !== null || fabricBusy.value !== null) return;
+  loaderGame.value = v.id;
+  loaderOpen.value = true;
+  void loadLoaders(v.id);
+}
+
+function closeLoaderPicker() {
+  if (fabricBusy.value !== null) return;
+  loaderOpen.value = false;
+}
+
+/** ESC 关闭选择器 */
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && loaderOpen.value) closeLoaderPicker();
+}
+
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
+
+function retryLoaders() {
+  if (loaderGame.value) void loadLoaders(loaderGame.value);
+}
+
+/** 这个 loader 装过没有 */
+function loaderInstalled(ver: string) {
+  return local.value.includes(`fabric-loader-${ver}-${loaderGame.value}`);
+}
+
+/** 开始安装选中的 loader */
+async function confirmLoader() {
+  const game = loaderGame.value;
+  const pick = loaderPick.value;
+  if (!game || !pick || fabricBusy.value !== null) return;
+
+  fabricBusy.value = game;
+  loaderError.value = "";
+  try {
+    const r = await installFabric(game, pick);
+    fabricReports.value = { ...fabricReports.value, [game]: r };
+    local.value = await listLocalVersions().catch(() => []);
+    loaderOpen.value = false;
+  } catch (e) {
+    loaderError.value = e instanceof Error ? e.message : String(e);
   } finally {
     fabricBusy.value = null;
   }
@@ -207,9 +287,9 @@ function launchLine(r: LaunchReport) {
           v-if="v.type === 'release'"
           class="mini fabric"
           :disabled="installingId !== null || fabricBusy !== null"
-          @click="installFabricFor(v)"
+          @click="openLoaderPicker(v)"
         >
-          {{ fabricBusy === v.id ? "Fabric…" : "Fabric" }}
+          Fabric
         </button>
         <button class="mini" :disabled="installingId !== null || fabricBusy !== null" @click="install(v)">
           {{
@@ -230,6 +310,75 @@ function launchLine(r: LaunchReport) {
       </div>
     </div>
   </div>
+
+    <!-- ───── 加载器选择器 ───── -->
+    <div v-if="loaderOpen" class="loader-mask">
+      <div class="loader-panel">
+        <header class="loader-head">
+          <div>
+            <h2>{{ t("versions.loaderTitle") }}</h2>
+            <p class="loader-game mono">{{ loaderGame }}</p>
+          </div>
+          <button class="loader-x" :disabled="fabricBusy !== null" @click="closeLoaderPicker">✕</button>
+        </header>
+
+        <p class="loader-desc">{{ t("versions.loaderDesc") }}</p>
+
+        <input
+          v-if="loaders.length > 0"
+          v-model="loaderQuery"
+          class="loader-search mono"
+          :placeholder="t('versions.loaderSearch')"
+          spellcheck="false"
+        />
+
+        <div v-if="loaderLoading" class="loader-state">
+          <span class="spinner"></span>
+          <span>{{ t("versions.loaderLoading") }}</span>
+        </div>
+
+        <div v-else-if="loaderError" class="loader-state err">
+          <span>{{ t("versions.loaderFailed") }}</span>
+          <span class="mono msg">{{ loaderError }}</span>
+          <button class="mini" @click="retryLoaders">{{ t("versions.loaderRetry") }}</button>
+        </div>
+
+        <div v-else-if="!loaders.length" class="loader-state">{{ t("versions.loaderNone") }}</div>
+
+        <div v-else-if="!shownLoaders.length" class="loader-state">{{ t("versions.loaderNoMatch") }}</div>
+
+        <div v-else class="loader-list">
+          <button
+            v-for="l in shownLoaders"
+            :key="l.version"
+            class="loader-item"
+            :class="{ on: loaderPick === l.version, done: loaderInstalled(l.version) }"
+            :disabled="fabricBusy !== null"
+            @click="loaderPick = l.version"
+          >
+            <span class="lv mono">{{ l.version }}</span>
+            <span v-if="l.stable" class="tag ok">{{ t("versions.loaderStable") }}</span>
+            <span v-else-if="l.version === latestLoader" class="tag">{{ t("versions.loaderLatest") }}</span>
+            <span v-else class="tag subtle">{{ t("versions.loaderBeta") }}</span>
+            <span class="spacer"></span>
+            <span v-if="loaderInstalled(l.version)" class="tag installed">
+              ✓ {{ t("versions.loaderInstalled") }}
+            </span>
+            <span class="tick" :class="{ show: loaderPick === l.version }">✓</span>
+          </button>
+        </div>
+
+        <footer class="loader-foot">
+          <button class="ghost" :disabled="fabricBusy !== null" @click="closeLoaderPicker">
+            {{ t("versions.loaderCancel") }}
+          </button>
+          <button class="primary" :disabled="!loaderPick || fabricBusy !== null" @click="confirmLoader">
+            {{ fabricBusy !== null ? t("versions.installing") : t("versions.loaderInstall") }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
 </template>
 
 <style scoped>
@@ -473,5 +622,244 @@ h1 {
 
 .report.err {
   color: #d14343;
+}
+
+/* ───── 加载器选择器 ───── */
+
+.loader-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  background: rgba(0, 0, 0, 0.38);
+  animation: mask-in var(--dur-2) var(--ease-apple);
+}
+
+.loader-panel {
+  width: min(560px, 100%);
+  max-height: min(640px, 100%);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 22px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  box-shadow: var(--shadow-lg);
+  animation: panel-in var(--dur-3) var(--ease-apple);
+}
+
+.loader-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.loader-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.loader-game {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.loader-x {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 13px;
+  transition: background var(--dur-1) var(--ease-apple);
+}
+
+.loader-x:hover:not(:disabled) {
+  background: var(--card-hover);
+  color: var(--ink);
+}
+
+.loader-desc {
+  margin: -4px 0 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.loader-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 26px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.spinner {
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--line);
+  border-top-color: var(--ink-3);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loader-state.err {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--err);
+}
+
+.loader-state.err .msg {
+  max-width: 100%;
+  font-size: 11px;
+  color: var(--ink-3);
+  word-break: break-all;
+}
+
+.loader-search {
+  width: 100%;
+  padding: 7px 11px;
+  font-size: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+}
+
+.loader-search:focus {
+  border-color: var(--ink-4);
+}
+
+.loader-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  overflow-y: auto;
+}
+
+.loader-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line-2);
+  background: var(--card);
+  color: var(--ink);
+  text-align: left;
+  transition:
+    background var(--dur-1) var(--ease-apple),
+    border-color var(--dur-1) var(--ease-apple);
+}
+
+.loader-item:hover:not(:disabled) { background: var(--card-hover); }
+.loader-item.on { border-color: var(--ink); background: var(--card-hover); }
+.loader-item.done { opacity: 0.72; }
+.loader-item .lv { font-size: 13px; }
+
+.loader-item .spacer,
+.loader-foot .spacer { flex: 1; }
+
+.tag {
+  padding: 1px 7px;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+}
+
+.tag.subtle {
+  opacity: 0.6;
+}
+
+.tag.ok,
+.tag.installed {
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  color: var(--ok);
+}
+
+.tick {
+  width: 14px;
+  font-size: 12px;
+  color: var(--ink);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-apple);
+}
+
+.tick.show { opacity: 1; }
+
+.loader-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.loader-foot .ghost,
+.loader-foot .primary {
+  padding: 8px 18px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  transition:
+    background var(--dur-1) var(--ease-apple),
+    color var(--dur-1) var(--ease-apple);
+}
+
+.loader-foot .ghost {
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.loader-foot .ghost:hover:not(:disabled) { background: var(--card-hover); }
+
+.loader-foot .primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.loader-foot .primary:disabled { opacity: 0.4; }
+
+@keyframes mask-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-mask,
+  .loader-panel { animation: none; }
 }
 </style>

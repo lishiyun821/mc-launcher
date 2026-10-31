@@ -147,7 +147,21 @@ export default {
     typeSnapshot: "Snapshot",
     typeOldBeta: "Old Beta",
     typeOldAlpha: "Old Alpha",
-  },
+
+/* loader picker */
+loaderTitle: "Choose a mod loader",
+loaderDesc: "Installs as a separate version; the vanilla one stays untouched",
+loaderLoading: "Fetching loader list…",
+loaderStable: "Stable",
+loaderLatest: "Latest",
+loaderNone: "No loader versions available",
+loaderInstalled: "Installed",
+loaderInstall: "Install",
+loaderCancel: "Cancel",
+loaderRetry: "Retry",
+loaderFailed: "Failed to fetch loader list",
+loaderNoSnapshot: "Snapshots usually have no loader support",
+},
   settings: {
     eyebrow: "SETTINGS",
     title: "Settings",

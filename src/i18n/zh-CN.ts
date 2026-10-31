@@ -147,6 +147,23 @@ export default {
     typeSnapshot: "快照",
     typeOldBeta: "古老 Beta",
     typeOldAlpha: "古老 Alpha",
+
+    /* 加载器选择器 */
+    loaderTitle: "选择模组加载器",
+    loaderDesc: "安装后会在左侧列表里多出一个独立版本，原版不受影响",
+    loaderLoading: "正在获取加载器列表…",
+    loaderStable: "稳定",
+    loaderLatest: "最新",
+    loaderNone: "没有可用的加载器版本",
+    loaderInstalled: "已安装",
+    loaderInstall: "安装",
+    loaderCancel: "取消",
+    loaderRetry: "重试",
+    loaderFailed: "获取加载器列表失败",
+    loaderSearch: "搜索 loader 版本",
+    loaderNoMatch: "没有匹配的版本",
+    loaderBeta: "测试",
+    loaderNoSnapshot: "快照版本通常没有加载器支持",
   },
   settings: {
     eyebrow: "SETTINGS",
