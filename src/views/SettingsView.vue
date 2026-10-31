@@ -350,7 +350,9 @@ async function save() {
     <section class="group">
       <div class="group-title">{{ t("settings.about") }}</div>
       <div class="row about-row">
-        <div class="about-icon" aria-hidden="true">M</div>
+        <div class="about-icon" aria-hidden="true">
+          <i v-for="n in 9" :key="n"></i>
+        </div>
         <div class="row-main">
           <div class="label">MC Launcher</div>
           <div class="about-meta">
@@ -599,13 +601,26 @@ h1 {
   height: 38px;
   flex-shrink: 0;
   display: grid;
-  place-items: center;
-  border-radius: 9px;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2.5px;
+  padding: 6px;
+  border-radius: 10px;
   background: var(--ink);
-  color: var(--bg);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.5px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.about-icon i {
+  display: block;
+  border-radius: 1.5px;
+  background: var(--bg);
+}
+
+/* 棋盘格：偶数格半透明 → 方块感，和侧栏 logo 一致 */
+.about-icon i:nth-child(2n) {
+  opacity: 0.5;
 }
 
 .about-meta {
